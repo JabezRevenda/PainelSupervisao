@@ -62,8 +62,10 @@ export function Agenda() {
         eyebrow={`Agenda de demos · ${fmtLongDate(agora)}`}
         title={
           <>
-            Hoje são <Hl>{hojeLista.length} demos</Hl>. <Ring>{semDesfechoHoje}</Ring> {semDesfechoHoje === 1 ? 'está' : 'estão'} sem desfecho <Capsule /> e {semContatoAntes}{' '}
-            {semContatoAntes === 1 ? 'lead ainda não teve' : 'leads ainda não tiveram'} contato antes da demo.
+            Hoje são <Hl>{hojeLista.length} demos</Hl>. <Ring>{semDesfechoHoje}</Ring> {semDesfechoHoje === 1 ? 'está' : 'estão'} sem desfecho <Capsule />
+            {semContatoAntes === 0
+              ? ' e nenhuma demo a seguir está sem contato prévio.'
+              : ` e ${semContatoAntes} ${semContatoAntes === 1 ? 'lead ainda não teve' : 'leads ainda não tiveram'} contato antes da demo.`}
           </>
         }
         text="Toda demo com horário passado precisa de desfecho: realizada ou não compareceu. É daqui que sai a taxa de comparecimento."

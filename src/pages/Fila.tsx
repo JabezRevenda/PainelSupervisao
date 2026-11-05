@@ -34,9 +34,11 @@ export function Fila() {
   const contagem = contarAlertas(filtradosVend);
   const linhas = aba === 'todos' ? filtradosVend : filtradosVend.filter((x) => x.alertas.some((a) => a.tipo === aba));
   const acao = itens.filter((x) => x.alertas[0].gravidade <= 5).length;
+  // Cronômetros: só quem espera o 1º contato há até 1 dia útil (os mais antigos ficam na tabela)
+  const jornada = p.fimMin - p.inicioMin;
   const relogios = itens
-    .filter((x) => x.view.primeiroContatoEm === null)
-    .sort((a, b) => a.view.atribuidoEm - b.view.atribuidoEm)
+    .filter((x) => x.view.primeiroContatoEm === null && businessMinutesBetween(x.view.atribuidoEm, agora, p) <= jornada)
+    .sort((a, b) => a.view.prazoSla - b.view.prazoSla)
     .slice(0, 4);
   const expediente = isBusinessTime(relogio, p);
 

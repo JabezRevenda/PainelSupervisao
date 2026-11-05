@@ -254,9 +254,12 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
     mudarEtapa('perdido', Math.max(em, ultimaInteracao + 10 * MIN), lr.weighted(motivos));
   };
 
-  // 2. Primeiro contato do vendedor
+  // 2. Primeiro contato do vendedor. Atender rápido aumenta comparecimento e propostas.
+  let rapido = false;
   if (!lr.chance(Math.min(perfil.pulaContato * tend.pula, 0.6))) {
-    const primeiro = addBusinessMinutes(atribuidoEm, lr.lognormal(perfil.primeiroContatoMin * tend.lento, perfil.sigma), P);
+    const atraso = lr.lognormal(perfil.primeiroContatoMin * tend.lento, perfil.sigma);
+    rapido = atraso <= 60;
+    const primeiro = addBusinessMinutes(atribuidoEm, atraso, P);
     if (primeiro < demoEm - 30 * MIN) {
       registrar(primeiro, 'whatsapp_enviado');
       if (lr.chance(0.45)) {
@@ -273,7 +276,7 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
 
   // 3. Demo (com uma remarcação possível)
   for (let tentativa = 0; tentativa < 2 && !fechado; tentativa++) {
-    const compareceu = lr.chance(Math.min(perfil.comparecimento * Math.pow(qual, 0.3), 0.97));
+    const compareceu = lr.chance(Math.min(perfil.comparecimento * Math.pow(qual, 0.3) * (rapido ? 1.06 : 0.84), 0.97));
     const semDesfechoPorUmTempo = lr.chance(perfil.registroAtrasado * 0.35);
     const desfechoEm = semDesfechoPorUmTempo
       ? addBusinessMinutes(demoEm, lr.lognormal(900, 0.6), P)
@@ -290,6 +293,8 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
     if (compareceu) {
       registrar(demoEm, 'videochamada', desfechoEm);
       mudarEtapa('demo_realizada', desfechoEm);
+      // o vendedor só segue o funil depois de registrar o desfecho no CRM
+      ultimaInteracao = Math.max(ultimaInteracao, desfechoEm);
       break;
     }
     if (tentativa === 0 && lr.chance(0.45)) {
@@ -303,7 +308,7 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
   if (fechado) return;
 
   // 4. Proposta
-  if (lr.chance(Math.min(perfil.proposta * qual, 0.95))) {
+  if (lr.chance(Math.min(perfil.proposta * qual * (rapido ? 1.08 : 0.8), 0.95))) {
     const em = addBusinessMinutes(ultimaInteracao, lr.lognormal(480, 0.7), P);
     acompanhar(em, [['whatsapp_enviado', 0.6], ['lead_respondeu', 0.4]]);
     registrar(em, lr.chance(0.3) ? 'email' : 'whatsapp_enviado');

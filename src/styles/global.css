@@ -257,6 +257,7 @@ button { font-family: inherit; }
 }
 .card--rank { border: 1px solid rgba(255, 110, 140, 0.55); background: var(--rank-card); color: #fff; border-radius: 26px; }
 a.card { text-decoration: none; color: inherit; transition: transform 0.2s ease; }
+.card.card--pink, .card.card--rank { color: #fff; }
 a.card:hover { transform: translateY(-3px); }
 .grid-bg {
   position: absolute; inset: 0; pointer-events: none;

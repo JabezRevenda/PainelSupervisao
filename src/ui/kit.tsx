@@ -102,9 +102,11 @@ export function Delta({
 }) {
   if (v === null || Number.isNaN(v)) return <span className="faint">sem comparação</span>;
   const bom = invert ? v < 0 : v > 0;
-  const sinal = v > 0 ? '+' : v < 0 ? '−' : '';
+  const casas = Math.abs(v) < 10 && unidade !== 'min' ? 1 : 0;
+  const num = fmtNum(Math.abs(v), casas);
+  const zero = Number(Math.abs(v).toFixed(casas)) === 0;
+  const sinal = zero ? '' : v > 0 ? '+' : '−';
   const cls = neutro || Math.abs(v) < 0.5 ? 'muted' : bom ? 'delta-good' : 'delta-bad';
-  const num = fmtNum(Math.abs(v), Math.abs(v) < 10 && unidade !== 'min' ? 1 : 0);
   return (
     <span className={cls}>
       {sinal}
