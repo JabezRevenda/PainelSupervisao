@@ -1,9 +1,10 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { Layout } from './layout/Layout';
+import { AppShell } from './layout/AppShell';
 import { Agenda } from './pages/Agenda';
 import { Configuracoes } from './pages/Configuracoes';
 import { Fila } from './pages/Fila';
 import { Funil } from './pages/Funil';
+import { Kanban } from './pages/Kanban';
 import { Marketing } from './pages/Marketing';
 import { Metas } from './pages/Metas';
 import { Perdas } from './pages/Perdas';
@@ -16,8 +17,9 @@ export function App() {
     <PainelProvider>
       <HashRouter>
         <Routes>
-          <Route element={<Layout />}>
+          <Route element={<AppShell />}>
             <Route index element={<VisaoGeral />} />
+            <Route path="kanban" element={<Kanban />} />
             <Route path="fila" element={<Fila />} />
             <Route path="agenda" element={<Agenda />} />
             <Route path="performance" element={<Performance />} />

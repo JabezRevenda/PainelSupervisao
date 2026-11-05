@@ -41,7 +41,10 @@ import {
   CIDADES,
   MOTIVOS_PERDA,
   N_NOMES,
+  N_PRIMEIROS,
+  N_SOBRENOMES,
   N_SUFIXOS,
+  nomeContato,
   nomeRevenda,
   PERFIS,
   type Perfil,
@@ -138,6 +141,9 @@ function agendarDemo(lr: Rng, apos: number): number {
   return dia + 9 * HOUR + slot * 30 * MIN;
 }
 
+/** Motivos que devolvem o lead para a pré-vendas tentar resgatar; os demais vão para o limbo. */
+const MOTIVOS_RESGATE = new Set(['sem_retorno', 'adiou', 'nao_compareceu']);
+
 function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) {
   const canal: Canal = lr.weighted(CANAIS_PESO);
   const utm = UTM[canal];
@@ -145,6 +151,7 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
   const lead: Lead = {
     id,
     criadoEm,
+    contato: nomeContato(lr.int(0, N_PRIMEIROS - 1), lr.int(0, N_SOBRENOMES - 1), lr.next()),
     revenda: nomeRevenda(lr.int(0, N_NOMES - 1), lr.int(0, N_SUFIXOS - 1)),
     cidade,
     uf,
@@ -163,13 +170,34 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
 
   let seq = 0;
   const nid = (p: string) => `${id}-${p}${++seq}`;
+  let etapa: Etapa | null = null;
+  let fechado = false;
+  let tarefaAberta: Tarefa | null = null;
 
-  // 1. SDR agenda a demo e atribui ao vendedor
-  let atribuidoEm = addBusinessMinutes(criadoEm, lr.lognormal(35, 0.9), P);
+  const mudar = (para: Etapa, em: number, usuarioId: string, motivoPerdaId?: string) => {
+    plano.etapas.push({ id: nid('e'), leadId: id, de: etapa, para, em, usuarioId, motivoPerdaId });
+    etapa = para;
+    if (para === 'cadastrado' || para === 'resgate_sdr' || para === 'limbo_sdr') {
+      fechado = true;
+      if (tarefaAberta) {
+        tarefaAberta.concluidoEm = em;
+        tarefaAberta = null;
+      }
+    }
+  };
+
+  // 0. Pré-vendas: entra pelo marketing, a IA qualifica e o SDR leva a SQL
+  mudar('lead_novo', criadoEm, 'integracao');
+  const qualificacaoEm = criadoEm + lr.int(1, 6) * MIN;
+  mudar('qualificacao_sdr', qualificacaoEm, 'ia-triagem');
+  const sqlEm = addBusinessMinutes(qualificacaoEm, lr.lognormal(16, 0.8), P);
+  mudar('sql', sqlEm, sdr);
+
+  // 1. SDR agenda a demo e atribui ao vendedor (o lead chega em "Demonstração agendada")
+  let atribuidoEm = addBusinessMinutes(sqlEm, lr.lognormal(18, 0.8), P);
   let vend = escolherVendedor();
   plano.atribuicoes.push({ id: nid('a'), leadId: id, vendedorAnteriorId: null, vendedorNovoId: vend, atribuidoPorId: sdr, em: atribuidoEm });
-  let etapa: Etapa = 'demo_agendada';
-  plano.etapas.push({ id: nid('e'), leadId: id, de: null, para: etapa, em: atribuidoEm, usuarioId: sdr });
+  mudar('demo_agendada', atribuidoEm, sdr);
   let demoEm = agendarDemo(lr, atribuidoEm);
   let demoCriadaEm = atribuidoEm;
 
@@ -186,10 +214,8 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
   const perfil = plano.perfis[vend];
 
   // --- registro de interações e próximos passos ---
-  let tarefaAberta: Tarefa | null = null;
   let ultimaInteracao = atribuidoEm;
   let nInteracoes = 0;
-  let fechado = false;
 
   const registrar = (ocorridoEm: number, tipo: TipoInteracao, registradoEm?: number) => {
     let via: Interacao['via'];
@@ -222,18 +248,6 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
     }
   };
 
-  const mudarEtapa = (para: Etapa, em: number, motivoPerdaId?: string) => {
-    plano.etapas.push({ id: nid('e'), leadId: id, de: etapa, para, em, usuarioId: vend, motivoPerdaId });
-    etapa = para;
-    if (para === 'ganho' || para === 'perdido') {
-      fechado = true;
-      if (tarefaAberta) {
-        tarefaAberta.concluidoEm = em;
-        tarefaAberta = null;
-      }
-    }
-  };
-
   /** Acompanhamentos até `ate`, no ritmo do vendedor (com "abandonos" ocasionais). */
   const acompanhar = (ate: number, tipos: [TipoInteracao, number][]) => {
     for (let guard = 0; guard < 30; guard++) {
@@ -245,16 +259,18 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
     }
   };
 
+  /** O vendedor não fecha: o lead volta para a pré-vendas (Resgate) ou vai para o Limbo. */
   const perder = (desde: number, medianaMin: number, motivos: [string, number][]) => {
     const em = addBusinessMinutes(desde, lr.lognormal(medianaMin, 0.7), P);
     // lead que nunca teve contato e é encerrado sem nenhuma tentativa registrada
     if (!(nInteracoes === 0 && lr.chance(0.75))) {
       acompanhar(em, [['tentativa_sem_resposta', 0.55], ['whatsapp_enviado', 0.45]]);
     }
-    mudarEtapa('perdido', Math.max(em, ultimaInteracao + 10 * MIN), lr.weighted(motivos));
+    const motivo = lr.weighted(motivos);
+    mudar(MOTIVOS_RESGATE.has(motivo) ? 'resgate_sdr' : 'limbo_sdr', Math.max(em, ultimaInteracao + 10 * MIN), vend, motivo);
   };
 
-  // 2. Primeiro contato do vendedor. Atender rápido aumenta comparecimento e propostas.
+  // 2. Primeiro contato do vendedor. Atender rápido aumenta comparecimento e fechamento.
   let rapido = false;
   if (!lr.chance(Math.min(perfil.pulaContato * tend.pula, 0.6))) {
     const atraso = lr.lognormal(perfil.primeiroContatoMin * tend.lento, perfil.sigma);
@@ -274,7 +290,7 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
     }
   }
 
-  // 3. Demo (com uma remarcação possível)
+  // 3. Demonstração (não compareceu → "Reagendar Demonstração", com uma remarcação possível)
   for (let tentativa = 0; tentativa < 2 && !fechado; tentativa++) {
     const compareceu = lr.chance(Math.min(perfil.comparecimento * Math.pow(qual, 0.3) * (rapido ? 1.06 : 0.84), 0.97));
     const semDesfechoPorUmTempo = lr.chance(perfil.registroAtrasado * 0.35);
@@ -292,51 +308,42 @@ function gerarLead(plano: PlanoSimulado, id: string, criadoEm: number, lr: Rng) 
     });
     if (compareceu) {
       registrar(demoEm, 'videochamada', desfechoEm);
-      mudarEtapa('demo_realizada', desfechoEm);
       // o vendedor só segue o funil depois de registrar o desfecho no CRM
       ultimaInteracao = Math.max(ultimaInteracao, desfechoEm);
+      mudar('negociacao', desfechoEm + lr.int(1, 15) * MIN, vend);
       break;
     }
+    mudar('reagendar_demo', desfechoEm, vend);
     if (tentativa === 0 && lr.chance(0.45)) {
       registrar(addBusinessMinutes(desfechoEm, lr.lognormal(60, 0.8), P), 'whatsapp_enviado');
-      demoCriadaEm = ultimaInteracao + 5 * MIN;
+      const remarcadaEm = addBusinessMinutes(ultimaInteracao, lr.lognormal(240, 0.9), P);
+      registrar(remarcadaEm, 'lead_respondeu');
+      demoCriadaEm = remarcadaEm + 5 * MIN;
       demoEm = agendarDemo(lr, demoCriadaEm);
+      mudar('demo_agendada', demoCriadaEm, vend);
       continue;
     }
     perder(desfechoEm, 900, [['nao_compareceu', 0.75], ['sem_retorno', 0.25]]);
   }
   if (fechado) return;
 
-  // 4. Proposta
-  if (lr.chance(Math.min(perfil.proposta * qual * (rapido ? 1.08 : 0.8), 0.95))) {
-    const em = addBusinessMinutes(ultimaInteracao, lr.lognormal(480, 0.7), P);
-    acompanhar(em, [['whatsapp_enviado', 0.6], ['lead_respondeu', 0.4]]);
-    registrar(em, lr.chance(0.3) ? 'email' : 'whatsapp_enviado');
-    mudarEtapa('proposta_enviada', em + lr.int(1, 10) * MIN);
-  } else {
+  // 4. Negociação: proposta enviada (interação) e depois fechamento ou perda
+  if (!lr.chance(Math.min(perfil.proposta * qual * (rapido ? 1.08 : 0.8), 0.95))) {
     perder(ultimaInteracao, 1800, [['preco', 0.35], ['sem_retorno', 0.25], ['outro_sistema', 0.25], ['adiou', 0.15]]);
     return;
   }
+  const propostaEm = addBusinessMinutes(ultimaInteracao, lr.lognormal(420, 0.7), P);
+  acompanhar(propostaEm, [['whatsapp_enviado', 0.6], ['lead_respondeu', 0.4]]);
+  registrar(propostaEm, lr.chance(0.35) ? 'email' : 'whatsapp_enviado');
 
-  // 5. Negociação
-  if (lr.chance(Math.min(perfil.negociacao * Math.sqrt(qual), 0.95))) {
-    const em = addBusinessMinutes(ultimaInteracao, lr.lognormal(1200, 0.7), P);
-    acompanhar(em, [['whatsapp_enviado', 0.5], ['tentativa_sem_resposta', 0.2], ['lead_respondeu', 0.3]]);
-    registrar(em, 'lead_respondeu');
-    mudarEtapa('negociacao', em + lr.int(1, 20) * MIN);
-  } else {
-    perder(ultimaInteracao, 2000, [['preco', 0.3], ['sem_retorno', 0.35], ['adiou', 0.2], ['concorrente', 0.15]]);
-    return;
-  }
-
-  // 6. Ganho (contrato assinado e pago: o vendedor marca no CRM)
-  if (lr.chance(Math.min(perfil.ganho * Math.sqrt(qual), 0.95))) {
-    const em = addBusinessMinutes(ultimaInteracao, lr.lognormal(1900, 0.7), P);
+  // 5. Cadastrado: contrato assinado e pago (o vendedor marca no CRM)
+  if (lr.chance(Math.min(perfil.negociacao * perfil.ganho * Math.sqrt(qual) * 0.95, 0.95))) {
+    const em = addBusinessMinutes(ultimaInteracao, lr.lognormal(2600, 0.7), P);
     acompanhar(em, [['whatsapp_enviado', 0.5], ['lead_respondeu', 0.35], ['email', 0.15]]);
     registrar(em, 'lead_respondeu');
-    mudarEtapa('ganho', em + lr.int(5, 90) * MIN);
+    mudar('cadastrado', em + lr.int(5, 90) * MIN, vend);
   } else {
-    perder(ultimaInteracao, 2600, [['preco', 0.35], ['concorrente', 0.3], ['adiou', 0.25], ['sem_retorno', 0.1]]);
+    perder(ultimaInteracao, 2600, [['preco', 0.33], ['concorrente', 0.27], ['adiou', 0.2], ['sem_retorno', 0.2]]);
   }
 }
 

@@ -1,12 +1,25 @@
+import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
-import { perdas, resumoAtendimento } from '../data/metrics/indicadores';
-import { DAY, fmtDate } from '../data/time';
-import { ETAPA_LABEL, type Etapa } from '../data/types';
-import { usePainel } from '../state/painel';
-import { Bar, Capsule, CardHead, fmtPct, Hero, Hl, Ring, Seg } from '../ui/kit';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Dot, fmtPct, NameAvatar, PageHeader, StatCard, Strong } from '@/components/kit';
+import { EASE, GrowBar, Page, Reveal, Segmented, Stagger, itemVariants } from '@/components/motion';
+import { perdas, resumoAtendimento } from '@/data/metrics/indicadores';
+import { DAY, fmtDate } from '@/data/time';
+import { ETAPA_COR, ETAPA_LABEL, type Etapa } from '@/data/types';
+import { cn } from '@/lib/utils';
+import { usePainel } from '@/state/painel';
 
 type Janela = '30' | '60' | '90';
-const ETAPAS_PERDA: Etapa[] = ['demo_agendada', 'demo_realizada', 'proposta_enviada', 'negociacao'];
+
+/** Etapas do vendedor de onde o lead sai quando é perdido. */
+const ORIGEM_PERDA: Etapa[] = ['demo_agendada', 'reagendar_demo', 'negociacao'];
+
+const DESTINOS: { etapa: Etapa; ajuda: string }[] = [
+  { etapa: 'resgate_sdr', ajuda: 'Sem retorno, adiou ou não compareceu. O SDR tenta de novo.' },
+  { etapa: 'limbo_sdr', ajuda: 'Preço, outro sistema ou concorrente. Fica parado na pré-vendas.' },
+];
 
 export function Perdas() {
   const { ds, views, agora, config, nome, abrirLead } = usePainel();
@@ -16,158 +29,247 @@ export function Perdas() {
   const d = useMemo(() => {
     const ini = agora - dias * DAY;
     const r = perdas(views, ini, agora);
-    const lentos = new Set(
-      [...r.porVendedor.keys()].filter((id) => (resumoAtendimento(views, ds, config.params, ini, agora, id).slaPct ?? 100) < 50),
-    );
-    return { ini, r, lentos };
+    const anterior = perdas(views, ini - dias * DAY, ini).total;
+    const lentos = new Set([...r.porVendedor.keys()].filter((id) => (resumoAtendimento(views, ds, config.params, ini, agora, id).slaPct ?? 100) < 50));
+    return { ini, r, anterior, lentos };
   }, [views, ds, agora, dias, config.params]);
 
-  const { ini, r, lentos } = d;
+  const { ini, r, anterior, lentos } = d;
   const motivoNome = (id: string) => ds.motivos.find((m) => m.id === id)?.nome ?? 'Sem motivo';
   const motivos = [...r.porMotivo.entries()].sort((a, b) => b[1] - a[1]);
   const maxMotivo = Math.max(1, ...motivos.map((m) => m[1]));
   const semRetorno = r.porMotivo.get('sem_retorno') ?? 0;
   let semRetornoLentos = 0;
   for (const [id, pv] of r.porVendedor) if (lentos.has(id)) semRetornoLentos += pv.motivos.get('sem_retorno') ?? 0;
-  const porEtapa = ETAPAS_PERDA.map((e) => ({ e, n: r.porEtapa.get(e) ?? 0 }));
+
+  const porEtapa = ORIGEM_PERDA.map((e) => ({ e, n: r.porEtapa.get(e) ?? 0 }));
   const maxEtapa = Math.max(1, ...porEtapa.map((x) => x.n));
-  const antesDaDemo = r.porEtapa.get('demo_agendada') ?? 0;
-  const naoCompareceu = r.porMotivo.get('nao_compareceu') ?? 0;
-  const porVend = [...r.porVendedor.entries()].map(([id, pv]) => ({ id, n: pv.n, motivo: [...pv.motivos.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] })).sort((a, b) => b.n - a.n);
+  const naNegociacao = r.porEtapa.get('negociacao') ?? 0;
+  const resgate = r.porDestino.get('resgate_sdr') ?? 0;
+  const limbo = r.porDestino.get('limbo_sdr') ?? 0;
+
+  const porVend = [...r.porVendedor.entries()]
+    .map(([id, pv]) => ({ id, n: pv.n, resgate: pv.resgate, motivo: [...pv.motivos.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] }))
+    .sort((a, b) => b.n - a.n);
   const maxVend = Math.max(1, ...porVend.map((x) => x.n));
   const semInterPorVend = new Map<string, number>();
   for (const v of r.semInteracao) semInterPorVend.set(v.vendedorId, (semInterPorVend.get(v.vendedorId) ?? 0) + 1);
+  const semInterLista = [...semInterPorVend.entries()].sort((a, b) => b[1] - a[1]);
+  const pct = (n: number) => (r.total ? (n / r.total) * 100 : null);
 
   return (
-    <>
-      <div className="between">
-        <span className="chip">
-          Perdas marcadas de {fmtDate(ini)} a {fmtDate(agora)}
-        </span>
-        <Seg label="Janela de análise" value={janela} onChange={setJanela} options={[['30', '30 dias'], ['60', '60 dias'], ['90', '90 dias']]} />
-      </div>
-
-      <Hero
-        eyebrow={`Perdas · últimos ${dias} dias`}
-        title={
+    <Page>
+      <PageHeader
+        title="Perdas"
+        description={
           <>
-            Perdemos <Ring>{r.total}</Ring> negociações. <Hl>{r.semInteracao.length === 1 ? '1 delas' : `${r.semInteracao.length} delas`}</Hl> <Capsule /> nunca {r.semInteracao.length === 1 ? 'teve' : 'tiveram'} uma interação.
+            Leads que o vendedor tirou da carteira de {fmtDate(ini)} a {fmtDate(agora)}. Foram <Strong>{r.total}</Strong>, e{' '}
+            <Strong tone="primary">{r.semInteracao.length}</Strong> {r.semInteracao.length === 1 ? 'saiu' : 'saíram'} sem nenhuma interação registrada. O motivo vem da lista
+            obrigatória do CRM.
           </>
         }
-        text={
-          <>
-            O motivo vem da lista obrigatória do CRM. "Sem retorno do cliente" soma {semRetorno} perdas
-            {semRetornoLentos > 0 ? `, ${semRetornoLentos} delas de vendedores com menos de 50% de primeiro contato em até 1 hora` : ''}.
-          </>
-        }
+        actions={<Segmented id="janela-perdas" label="Janela" value={janela} onChange={setJanela} options={[['30', '30 dias'], ['60', '60 dias'], ['90', '90 dias']]} />}
       />
 
-      <section className="row">
-        <div className="card" style={{ flex: '2 1 520px' }}>
-          <CardHead title="Motivos de perda" sub={`${r.total} negociações perdidas`} />
-          <div className="stack gap-16">
-            {motivos.map(([id, n]) => {
-              const destaque = id === 'sem_retorno';
-              return (
-                <div key={id} className="stack gap-8">
-                  <div className="between" style={{ fontSize: 14 }}>
-                    <span style={{ fontWeight: 500 }}>{motivoNome(id)}</span>
-                    <span className="muted">
-                      <strong className="num" style={{ color: 'var(--text)' }}>{n}</strong> · {fmtPct((n / r.total) * 100)}
-                    </span>
-                  </div>
-                  <span className="track" style={{ height: 12, minHeight: 12, maxHeight: 12, borderRadius: 6 }}>
-                    <span
-                      style={{
-                        width: `${(n / maxMotivo) * 100}%`,
-                        borderRadius: 6,
-                        background: destaque ? 'linear-gradient(90deg,#9C0F31,#F04A6E)' : 'rgba(230,35,78,.45)',
-                        boxShadow: destaque ? '0 0 18px rgba(230,35,78,.7)' : 'none',
-                      }}
-                    />
+      <Stagger className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        {[
+          {
+            label: 'Perdas no período',
+            value: r.total,
+            delta: (
+              <span className="text-muted-foreground">
+                {anterior} nos {dias} dias anteriores
+              </span>
+            ),
+          },
+          { label: 'Foram para Resgate - SDR', value: resgate, delta: <span className="text-muted-foreground">{fmtPct(pct(resgate))} das perdas · ainda dá para recuperar</span> },
+          { label: 'Foram para Limbo - SDR', value: limbo, delta: <span className="text-muted-foreground">{fmtPct(pct(limbo))} das perdas</span> },
+          {
+            label: 'Sem nenhuma interação',
+            value: r.semInteracao.length,
+            delta: <span className={r.semInteracao.length ? 'text-primary' : 'text-muted-foreground'}>{fmtPct(pct(r.semInteracao.length))} das perdas</span>,
+          },
+        ].map((k) => (
+          <motion.div key={k.label} variants={itemVariants}>
+            <StatCard {...k} className="h-full" />
+          </motion.div>
+        ))}
+      </Stagger>
+
+      <Reveal className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Motivos de perda</CardTitle>
+            <CardDescription>
+              {r.total} {r.total === 1 ? 'lead perdido' : 'leads perdidos'} no período
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            {motivos.map(([id, n], i) => (
+              <div key={id} className="flex flex-col gap-1.5">
+                <div className="flex items-baseline justify-between gap-3 text-sm">
+                  <span className="font-medium">{motivoNome(id)}</span>
+                  <span className="text-muted-foreground">
+                    <span className="num font-medium text-foreground">{n}</span> · {fmtPct(pct(n))}
                   </span>
-                  {destaque && semRetornoLentos > 0 && (
-                    <span className="amber" style={{ fontSize: 12 }}>
-                      {semRetornoLentos} de {semRetorno} são de vendedores lentos no primeiro contato.
-                    </span>
-                  )}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="card card--pink" style={{ flex: '1 1 300px' }}>
-          <span className="eyebrow">Perdas sem nenhuma interação</span>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span className="big" style={{ fontSize: 64 }}>{r.semInteracao.length}</span>
-            <span style={{ fontSize: 14 }}>marcadas como perdidas sem nenhum contato registrado</span>
-          </div>
-          <div className="stack gap-8">
-            {[...semInterPorVend.entries()].sort((a, b) => b[1] - a[1]).map(([id, n]) => (
-              <div key={id} className="between" style={{ padding: '12px 14px', borderRadius: 14, background: 'rgba(12,11,14,.82)', fontSize: 14 }}>
-                <span>{nome(id)}</span>
-                <strong className="num">{n}</strong>
+                <GrowBar pct={(n / maxMotivo) * 100} className="h-2" color={i === 0 ? 'var(--primary)' : 'color-mix(in oklch, var(--primary) 45%, var(--muted))'} delay={0.1 + i * 0.05} />
+                {id === 'sem_retorno' && semRetornoLentos > 0 && (
+                  <span className="text-xs text-warning-foreground">
+                    {semRetornoLentos} de {semRetorno} são de vendedores com menos de 50% de primeiro contato em até 1 hora.
+                  </span>
+                )}
               </div>
             ))}
-            {r.semInteracao.slice(0, 3).map((v) => (
-              <button key={v.lead.id} type="button" onClick={() => abrirLead(v.lead.id)} style={{ textAlign: 'left', border: 0, background: 'transparent', color: '#fff', fontSize: 13, textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
-                Ver {v.lead.revenda}
-              </button>
-            ))}
-          </div>
-          <p style={{ margin: 'auto 0 0', fontSize: 13, lineHeight: 1.5 }}>Com a trava da Fase 1, o CRM não deixa marcar Perdido sem ao menos uma interação.</p>
-        </div>
-      </section>
+            {motivos.length === 0 && <p className="text-sm text-muted-foreground">Nenhuma perda no período.</p>}
+          </CardContent>
+        </Card>
 
-      <section className="row">
-        <div className="card card--feature" style={{ flex: '1 1 380px' }}>
-          <CardHead title="Em que etapa perdemos" sub="Etapa em que o lead estava quando foi marcado como perdido" />
-          <div role="img" aria-label={`Perdas por etapa: ${porEtapa.map((x) => `${ETAPA_LABEL[x.e]} ${x.n}`).join(', ')}`} style={{ display: 'flex', alignItems: 'flex-end', gap: 16, height: 220, borderBottom: '1px solid rgba(255,255,255,.14)' }}>
+        <Card>
+          <CardHeader>
+            <CardTitle>Perdidos sem interação</CardTitle>
+            <CardDescription>Marcados como perda sem nenhum contato registrado depois que o vendedor recebeu</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col gap-4">
+            <div className="flex flex-col divide-y rounded-lg border">
+              {semInterLista.map(([id, n]) => (
+                <div key={id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <span className="flex items-center gap-2">
+                    <NameAvatar nome={nome(id)} size={22} />
+                    {nome(id)}
+                  </span>
+                  <span className="num font-medium">{n}</span>
+                </div>
+              ))}
+              {semInterLista.length === 0 && <p className="px-3 py-4 text-sm text-muted-foreground">Nenhuma no período.</p>}
+            </div>
+            {r.semInteracao.length > 0 && (
+              <div className="flex flex-col gap-1">
+                {r.semInteracao.slice(0, 4).map((v) => (
+                  <Button key={v.lead.id} variant="link" size="sm" className="h-auto justify-start p-0 text-left font-normal" onClick={() => abrirLead(v.lead.id)}>
+                    {v.lead.contato} - {v.lead.revenda}
+                  </Button>
+                ))}
+              </div>
+            )}
+            <p className="mt-auto text-xs leading-relaxed text-muted-foreground">Com a trava da Fase 1, o CRM não deixa mover para Resgate ou Limbo sem pelo menos uma interação.</p>
+          </CardContent>
+        </Card>
+      </Reveal>
+
+      <Reveal className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>Para onde o lead vai</CardTitle>
+            <CardDescription>Quando o vendedor perde, o lead volta para a pré-vendas</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-5">
+            <div className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-muted">
+              {DESTINOS.map(({ etapa }, i) => {
+                const n = r.porDestino.get(etapa) ?? 0;
+                return (
+                  <motion.div
+                    key={etapa}
+                    className="h-full"
+                    style={{ background: ETAPA_COR[etapa] }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${pct(n) ?? 0}%` }}
+                    transition={{ duration: 0.9, ease: EASE, delay: 0.15 + i * 0.1 }}
+                  />
+                );
+              })}
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              {DESTINOS.map(({ etapa, ajuda }) => {
+                const n = r.porDestino.get(etapa) ?? 0;
+                return (
+                  <div key={etapa} className="flex flex-col gap-1">
+                    <span className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Dot color={ETAPA_COR[etapa]} />
+                      {ETAPA_LABEL[etapa]}
+                    </span>
+                    <span className="flex items-baseline gap-2">
+                      <span className="num text-2xl font-semibold tracking-tight">{n}</span>
+                      <span className="text-sm text-muted-foreground">{fmtPct(pct(n))}</span>
+                    </span>
+                    <span className="text-xs leading-relaxed text-muted-foreground">{ajuda}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Em que etapa perdemos</CardTitle>
+            <CardDescription>Etapa em que o lead estava quando saiu da carteira</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
             {porEtapa.map((x, i) => (
-              <div key={x.e} style={{ flex: '1 1 0', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', gap: 8, height: '100%' }}>
-                <span className="num" style={{ fontSize: 18, fontWeight: 600 }}>{x.n}</span>
-                <div
-                  style={{
-                    width: '100%',
-                    maxWidth: 72,
-                    height: (x.n / maxEtapa) * 170,
-                    borderRadius: '12px 12px 4px 4px',
-                    background: i === 0 ? 'linear-gradient(180deg,#FF6B8A,#C81640)' : `linear-gradient(180deg, rgba(255,107,138,${0.8 - i * 0.12}), rgba(200,22,64,${0.8 - i * 0.12}))`,
-                    boxShadow: x.n === maxEtapa ? '0 0 26px rgba(230,35,78,.55)' : 'none',
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-          <div style={{ display: 'flex', gap: 16, marginTop: -8 }} aria-hidden="true">
-            {porEtapa.map((x) => (
-              <span key={x.e} className="muted" style={{ flex: '1 1 0', textAlign: 'center', fontSize: 12 }}>{ETAPA_LABEL[x.e]}</span>
-            ))}
-          </div>
-          <p style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
-            {fmtPct(r.total ? (antesDaDemo / r.total) * 100 : null)} das perdas acontecem antes da demo; {naoCompareceu} por não comparecimento sem remarcação.
-          </p>
-        </div>
-
-        <div className="card card--flush" style={{ flex: '1 1 440px' }}>
-          <div className="card-pad">
-            <CardHead title="Perdas por vendedor" sub="Quantidade e motivo mais comum" />
-          </div>
-          <div role="table" aria-label="Perdas por vendedor">
-            {porVend.map((x) => (
-              <div role="row" key={x.id} className="trow clickable" style={{ gridTemplateColumns: 'minmax(120px,1fr) minmax(110px,1.2fr) minmax(160px,1.4fr)' }}>
-                <span role="cell" style={{ fontWeight: 500 }}>{nome(x.id)}</span>
-                <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Bar pct={(x.n / maxVend) * 100} tone={x.n >= maxVend * 0.75 ? 'red' : 'neutral'} />
-                  <span className="num" style={{ width: 24, textAlign: 'right', fontWeight: 600 }}>{x.n}</span>
+              <div key={x.e} className="grid grid-cols-[200px_1fr_72px] items-center gap-3 text-sm max-sm:grid-cols-[1fr_72px]">
+                <span className="flex items-center gap-2 max-sm:col-span-2">
+                  <Dot color={ETAPA_COR[x.e]} />
+                  {ETAPA_LABEL[x.e]}
                 </span>
-                <span role="cell" className="muted" style={{ fontSize: 13 }}>{x.motivo ? motivoNome(x.motivo) : '—'}</span>
+                <GrowBar pct={(x.n / maxEtapa) * 100} className="h-2" color={ETAPA_COR[x.e]} delay={0.1 + i * 0.06} />
+                <span className="num text-right">
+                  <span className="font-medium">{x.n}</span> <span className="text-xs text-muted-foreground">{fmtPct(pct(x.n))}</span>
+                </span>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-    </>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {fmtPct(pct(naNegociacao))} das perdas acontecem depois da demonstração, já em Negociação. Antes dela, {(r.porEtapa.get('demo_agendada') ?? 0) + (r.porEtapa.get('reagendar_demo') ?? 0)} leads
+              saíram sem chegar a ver o sistema.
+            </p>
+          </CardContent>
+        </Card>
+      </Reveal>
+
+      <Reveal>
+        <Card className="gap-0 pb-0">
+          <CardHeader className="pb-3">
+            <CardTitle>Perdas por vendedor</CardTitle>
+            <CardDescription>Quantidade, destino e motivo mais comum</CardDescription>
+          </CardHeader>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="pl-4">Vendedor</TableHead>
+                <TableHead className="w-[30%]">Perdas</TableHead>
+                <TableHead className="text-right">Para Resgate</TableHead>
+                <TableHead className="text-right">Sem interação</TableHead>
+                <TableHead className="pr-4">Motivo mais comum</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {porVend.map((x, i) => {
+                const sem = semInterPorVend.get(x.id) ?? 0;
+                return (
+                  <TableRow key={x.id}>
+                    <TableCell className="pl-4">
+                      <span className="flex items-center gap-2.5">
+                        <NameAvatar nome={nome(x.id)} size={26} />
+                        {nome(x.id)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <GrowBar pct={(x.n / maxVend) * 100} color={x.n === maxVend ? 'var(--primary)' : 'color-mix(in oklch, var(--foreground) 30%, transparent)'} delay={0.1 + i * 0.04} />
+                        <span className="num w-6 text-right font-medium">{x.n}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="num text-right text-muted-foreground">{fmtPct(x.n ? (x.resgate / x.n) * 100 : null)}</TableCell>
+                    <TableCell className={cn('num text-right', sem > 0 ? 'text-primary' : 'text-muted-foreground')}>{sem}</TableCell>
+                    <TableCell className="pr-4 text-muted-foreground">{x.motivo ? motivoNome(x.motivo) : '—'}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+          {porVend.length === 0 && <p className="p-8 text-center text-sm text-muted-foreground">Nenhuma perda no período.</p>}
+        </Card>
+      </Reveal>
+    </Page>
   );
 }

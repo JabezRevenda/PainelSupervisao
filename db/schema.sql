@@ -26,13 +26,19 @@ CREATE TABLE leads (
   id            TEXT PRIMARY KEY,
   criado_em     TIMESTAMPTZ NOT NULL,
   revenda       TEXT NOT NULL,
+  contato       TEXT NOT NULL,              -- nome do contato, como digitado no CRM
   cidade        TEXT,
   uf            CHAR(2),
-  canal         TEXT NOT NULL,              -- google_ads | meta_ads | site | whatsapp_chat | prospeccao
+  canal         TEXT NOT NULL,              -- origem: paid_search | paid_social | organic_search | revenda_mais | indicacao | referral
   utm_source    TEXT,
   utm_medium    TEXT,
   utm_campaign  TEXT,
-  etapa_atual   TEXT NOT NULL,              -- demo_agendada ... ganho | perdido
+  -- Etapas do CRM, na ordem do Kanban:
+  --   pré-vendas: lead_novo | qualificacao_sdr | lead_qualificado | sql
+  --   vendedor:   demo_agendada | reagendar_demo | negociacao
+  --   ganho:      cadastrado (contrato assinado e pago)
+  --   saídas:     resgate_sdr | limbo_sdr (o vendedor perdeu e o lead volta para a pré-vendas)
+  etapa_atual   TEXT NOT NULL,
   vendedor_id   TEXT REFERENCES usuarios(id)
 );
 
@@ -56,7 +62,7 @@ CREATE TABLE historico_etapas (
   para             TEXT NOT NULL,
   em               TIMESTAMPTZ NOT NULL DEFAULT now(),       -- horário do servidor
   usuario_id       TEXT REFERENCES usuarios(id),
-  motivo_perda_id  TEXT                                       -- só quando para = 'perdido'
+  motivo_perda_id  TEXT                                       -- só quando para = 'resgate_sdr' ou 'limbo_sdr'
 );
 CREATE INDEX ON historico_etapas (lead_id, em);
 

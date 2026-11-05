@@ -12,7 +12,7 @@ function base(agora: number): Dataset {
   return {
     agora,
     usuarios: [{ id: 'v1', nome: 'Vendedor', funcao: 'vendedor', equipe: 'inside_sales', ativo: true }],
-    leads: [{ id: 'L1', criadoEm: t(5, 9), revenda: 'Revenda Teste', cidade: 'Curitiba', uf: 'PR', canal: 'site', utmSource: 'site', utmMedium: 'organic', utmCampaign: null }],
+    leads: [{ id: 'L1', criadoEm: t(5, 9), revenda: 'Revenda Teste', cidade: 'Curitiba', uf: 'PR', canal: 'organic_search', utmSource: 'google', utmMedium: 'organic', utmCampaign: null, contato: 'Contato Teste' }],
     atribuicoes: [{ id: 'a1', leadId: 'L1', vendedorAnteriorId: null, vendedorNovoId: 'v1', atribuidoPorId: 'sdr', em: t(5, 10) }],
     etapas: [{ id: 'e1', leadId: 'L1', de: null, para: 'demo_agendada', em: t(5, 10), usuarioId: 'sdr' }],
     interacoes: [],
@@ -62,7 +62,7 @@ describe('lead parado e em atenção', () => {
 describe('metas do mês', () => {
   it('conta ganhos pela data em que o vendedor marca Ganho', () => {
     const ds = base(t(20, 12));
-    ds.etapas.push({ id: 'e2', leadId: 'L1', de: 'negociacao', para: 'ganho', em: t(19, 15), usuarioId: 'v1' });
+    ds.etapas.push({ id: 'e2', leadId: 'L1', de: 'negociacao', para: 'cadastrado', em: t(19, 15), usuarioId: 'v1' });
     const m = metasDoMes(construirViews(ds, p), ds.agora, p, { v1: 5 }, ['v1']);
     expect(m.ganhos).toBe(1);
     expect(m.meta).toBe(5);

@@ -26,7 +26,7 @@ export interface Config {
   tema: Tema;
 }
 
-const CHAVE = 'revenda-mais:painel-supervisao:v1';
+const CHAVE = 'revenda-mais:painel-supervisao:v2';
 const ATUALIZA_MS = 60_000;
 
 const CONFIG_PADRAO: Config = {
@@ -35,7 +35,7 @@ const CONFIG_PADRAO: Config = {
   alvosOkr: {},
   alertas: { slaEstourado: true, parado: true, atencao: true, resumoDoDia: true, sinalVendedor: false },
   semente: 'revenda-mais',
-  tema: 'dark',
+  tema: 'light',
 };
 
 function lerConfig(): Config {
@@ -112,7 +112,7 @@ export function PainelProvider({ children }: { children: ReactNode }) {
   }, [config.tema]);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = config.tema;
+    document.documentElement.classList.toggle('dark', config.tema === 'dark');
   }, [config.tema]);
 
   // Recalcula a cada minuto (o mesmo ritmo previsto para a réplica)

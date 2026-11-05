@@ -17,8 +17,10 @@ import type {
   Lead,
   MudancaEtapa,
   Parametros,
+  PassoFunil,
   Tarefa,
 } from '../types';
+import { ETAPAS_PERDA } from '../types';
 
 /** Uma demo é considerada "sem desfecho" 1 hora depois do horário marcado. */
 export const TOLERANCIA_DESFECHO_MS = 60 * MIN;
@@ -54,8 +56,10 @@ export interface LeadView {
   passoVencido: Tarefa | null;
   proximaDemo: Demo | null;
   demoSemDesfecho: Demo | null;
-  /** Horário em que a etapa foi atingida (para o funil) */
+  /** Horário em que a etapa foi atingida pela primeira vez */
   atingiu: Partial<Record<Etapa, number>>;
+  /** Horário de cada passo do funil do vendedor (inclui "demo realizada") */
+  passo: Partial<Record<PassoFunil, number>>;
 }
 
 export type TipoAlerta =
@@ -116,11 +120,16 @@ export function construirViews(ds: Dataset, p: Parametros): LeadView[] {
     const atribuidoEm = ultimaAtrib.em;
     const ultimaEtapa = historico[historico.length - 1];
     const etapa: Etapa = ultimaEtapa ? ultimaEtapa.para : 'demo_agendada';
-    const status = etapa === 'ganho' ? 'ganho' : etapa === 'perdido' ? 'perdido' : 'aberto';
+    const status = etapa === 'cadastrado' ? 'ganho' : ETAPAS_PERDA.includes(etapa) ? 'perdido' : 'aberto';
     const fechadoEm = status === 'aberto' ? null : ultimaEtapa.em;
 
     const atingiu: Partial<Record<Etapa, number>> = {};
     for (const h of historico) if (atingiu[h.para] === undefined) atingiu[h.para] = h.em;
+    const passo: Partial<Record<PassoFunil, number>> = {
+      demo_agendada: atribuicoes[0].em,
+      negociacao: atingiu.negociacao,
+      cadastrado: atingiu.cadastrado,
+    };
 
     const contato = interacoes.find((i) => i.registradoEm >= atribuidoEm) ?? null;
     const ultima = interacoes.length ? interacoes[interacoes.length - 1].registradoEm : null;
@@ -159,6 +168,7 @@ export function construirViews(ds: Dataset, p: Parametros): LeadView[] {
       proximaDemo,
       demoSemDesfecho,
       atingiu,
+      passo,
     });
   }
   return out;

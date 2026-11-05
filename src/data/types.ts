@@ -7,43 +7,97 @@
  * fica em `time.ts`.
  */
 
+/** Etapas do CRM, na ordem do Kanban. */
 export type Etapa =
+  | 'lead_novo'
+  | 'qualificacao_sdr'
+  | 'lead_qualificado'
+  | 'sql'
   | 'demo_agendada'
-  | 'demo_realizada'
-  | 'proposta_enviada'
+  | 'reagendar_demo'
   | 'negociacao'
-  | 'ganho'
-  | 'perdido';
+  | 'cadastrado'
+  | 'resgate_sdr'
+  | 'limbo_sdr';
 
-/** Etapas do funil do vendedor, na ordem. O lead chega ao vendedor em "Demo agendada". */
-export const ETAPAS_FUNIL: Etapa[] = [
+export const ETAPAS_CRM: Etapa[] = [
+  'lead_novo',
+  'qualificacao_sdr',
+  'lead_qualificado',
+  'sql',
   'demo_agendada',
-  'demo_realizada',
-  'proposta_enviada',
+  'reagendar_demo',
   'negociacao',
-  'ganho',
+  'cadastrado',
+  'resgate_sdr',
+  'limbo_sdr',
 ];
 
 export const ETAPA_LABEL: Record<Etapa, string> = {
-  demo_agendada: 'Demo agendada',
-  demo_realizada: 'Demo realizada',
-  proposta_enviada: 'Proposta enviada',
+  lead_novo: 'Lead novo - Marketing',
+  qualificacao_sdr: 'Qualificação - SDR',
+  lead_qualificado: 'Lead qualificado',
+  sql: 'SQL',
+  demo_agendada: 'Demonstração agendada',
+  reagendar_demo: 'Reagendar Demonstração',
   negociacao: 'Negociação',
-  ganho: 'Ganho',
-  perdido: 'Perdido',
+  cadastrado: 'Cadastrado',
+  resgate_sdr: 'Resgate - SDR',
+  limbo_sdr: 'Limbo - SDR',
 };
 
-export type Canal = 'google_ads' | 'meta_ads' | 'site' | 'whatsapp_chat' | 'prospeccao';
+/** Cor da bolinha de cada etapa (como no CRM). */
+export const ETAPA_COR: Record<Etapa, string> = {
+  lead_novo: '#60A5FA',
+  qualificacao_sdr: '#38BDF8',
+  lead_qualificado: '#2DD4BF',
+  sql: '#34D399',
+  demo_agendada: '#FACC15',
+  reagendar_demo: '#FB7A3C',
+  negociacao: '#A78BFA',
+  cadastrado: '#22C55E',
+  resgate_sdr: '#F472B6',
+  limbo_sdr: '#A1A1AA',
+};
+
+/** Etapas da pré-vendas (IA + SDR). Ficam fora dos indicadores do painel. */
+export const ETAPAS_PRE_VENDAS: Etapa[] = ['lead_novo', 'qualificacao_sdr', 'lead_qualificado', 'sql'];
+/** Etapas em que o lead está com o vendedor. */
+export const ETAPAS_VENDEDOR: Etapa[] = ['demo_agendada', 'reagendar_demo', 'negociacao'];
+/** Saídas do vendedor quando não fecha (o lead volta para a pré-vendas). */
+export const ETAPAS_PERDA: Etapa[] = ['resgate_sdr', 'limbo_sdr'];
+
+/** Passos do funil do vendedor: as etapas do CRM por onde o lead passa até fechar. */
+export type PassoFunil = 'demo_agendada' | 'negociacao' | 'cadastrado';
+export const FUNIL: PassoFunil[] = ['demo_agendada', 'negociacao', 'cadastrado'];
+export const FUNIL_LABEL: Record<PassoFunil, string> = {
+  demo_agendada: 'Demonstração agendada',
+  negociacao: 'Negociação',
+  cadastrado: 'Cadastrado',
+};
+
+/** Origem do lead, como aparece no cartão do CRM. */
+export type Canal = 'paid_search' | 'paid_social' | 'organic_search' | 'revenda_mais' | 'indicacao' | 'referral';
 
 export const CANAL_LABEL: Record<Canal, string> = {
-  google_ads: 'Google Ads',
-  meta_ads: 'Meta Ads',
-  site: 'Site / orgânico',
-  whatsapp_chat: 'WhatsApp / chat',
-  prospeccao: 'Prospecção ativa',
+  paid_search: 'Paid Search',
+  paid_social: 'Paid Social',
+  organic_search: 'Organic Search',
+  revenda_mais: 'Revenda Mais',
+  indicacao: 'Indicação',
+  referral: 'Referral',
 };
 
-export const CANAIS: Canal[] = ['google_ads', 'meta_ads', 'site', 'whatsapp_chat', 'prospeccao'];
+export const CANAL_COR: Record<Canal, string> = {
+  paid_search: '#EAB308',
+  paid_social: '#3B82F6',
+  organic_search: '#C084FC',
+  revenda_mais: '#EF4444',
+  indicacao: '#8B5CF6',
+  referral: '#16A34A',
+};
+
+export const CANAIS: Canal[] = ['paid_search', 'paid_social', 'organic_search', 'revenda_mais', 'indicacao', 'referral'];
 
 /** Tabela: usuários e equipes */
 export interface Usuario {
@@ -58,6 +112,8 @@ export interface Usuario {
 export interface Lead {
   id: string;
   criadoEm: number;
+  /** Nome do contato, como foi digitado no CRM */
+  contato: string;
   revenda: string;
   cidade: string;
   uf: string;
@@ -85,7 +141,7 @@ export interface MudancaEtapa {
   para: Etapa;
   em: number;
   usuarioId: string;
-  /** Só quando `para === 'perdido'` (lista obrigatória do CRM) */
+  /** Só quando o lead sai do vendedor sem fechar (lista obrigatória do CRM) */
   motivoPerdaId?: string;
 }
 

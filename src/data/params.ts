@@ -34,7 +34,7 @@ export const OKRS_PADRAO: Objetivo[] = [
       { id: 'kr1', nome: '1º contato em até 1 hora útil', indicador: 'sla_1h', alvo: 85, menorMelhor: false, unidade: '%' },
       { id: 'kr2', nome: 'Leads parados há mais de 48h', indicador: 'parados_agora', alvo: 3, menorMelhor: true, unidade: '' },
       { id: 'kr3', nome: 'Leads abertos com próximo passo', indicador: 'com_proximo_passo', alvo: 100, menorMelhor: false, unidade: '%' },
-      { id: 'kr4', nome: 'Contratos ganhos no mês (projeção)', indicador: 'contratos_mes', alvo: 40, menorMelhor: false, unidade: '' },
+      { id: 'kr4', nome: 'Cadastros no mês (projeção)', indicador: 'contratos_mes', alvo: 40, menorMelhor: false, unidade: '' },
     ],
   },
   {

@@ -35,41 +35,67 @@ export const MOTIVOS_PERDA: MotivoPerda[] = [
 ];
 
 export const CANAIS_PESO: [Canal, number][] = [
-  ['google_ads', 0.37],
-  ['meta_ads', 0.27],
-  ['site', 0.19],
-  ['whatsapp_chat', 0.1],
-  ['prospeccao', 0.07],
+  ['paid_search', 0.33],
+  ['paid_social', 0.21],
+  ['organic_search', 0.2],
+  ['revenda_mais', 0.1],
+  ['indicacao', 0.08],
+  ['referral', 0.08],
 ];
 
 export const UTM: Record<Canal, { source: string; medium: string; campaigns: [string | null, number][] }> = {
-  google_ads: {
+  paid_search: {
     source: 'google',
     medium: 'cpc',
     campaigns: [['gestao-estoque', 0.38], ['sistema-revenda-search', 0.32], ['marca-revenda-mais', 0.18], ['integracao-portais', 0.12]],
   },
-  meta_ads: {
+  paid_social: {
     source: 'facebook',
     medium: 'paid-social',
     campaigns: [['lookalike-lojistas', 0.42], ['remarketing-site', 0.36], ['video-depoimentos', 0.22]],
   },
-  site: {
-    source: 'site',
+  organic_search: {
+    source: 'google',
     medium: 'organic',
     campaigns: [['conteudo-blog', 0.45], ['calculadora-margem', 0.25], [null, 0.3]],
   },
-  whatsapp_chat: { source: 'whatsapp', medium: 'chat', campaigns: [[null, 1]] },
-  prospeccao: { source: 'outbound', medium: 'sdr', campaigns: [[null, 1]] },
+  revenda_mais: { source: 'revendamais', medium: 'site', campaigns: [['teste-gratis', 0.6], [null, 0.4]] },
+  indicacao: { source: 'indicacao', medium: 'cliente', campaigns: [[null, 1]] },
+  referral: { source: 'parceiros', medium: 'referral', campaigns: [['portal-parceiro', 0.6], [null, 0.4]] },
 };
 
-/** Fator de qualidade por canal (multiplica as chances de avançar no funil). */
+/** Fator de qualidade por origem (multiplica as chances de avançar no funil). */
 export const QUALIDADE_CANAL: Record<Canal, number> = {
-  google_ads: 1.0,
-  meta_ads: 0.86,
-  site: 1.12,
-  whatsapp_chat: 1.05,
-  prospeccao: 1.1,
+  paid_search: 1.0,
+  paid_social: 0.86,
+  organic_search: 1.1,
+  revenda_mais: 1.05,
+  indicacao: 1.18,
+  referral: 1.08,
 };
+
+const PRIMEIROS_NOMES = [
+  'Murilo', 'Joel', 'Marcelo', 'Thalles', 'André', 'Anderson', 'João', 'Jaqueline', 'Delciane', 'Pollyanna',
+  'Fábio', 'Katia', 'Gustavo', 'Aenderson', 'Carlos', 'Rafael', 'Juliana', 'Patrícia', 'Rodrigo', 'Luciano',
+  'Fernanda', 'Diego', 'Vinícius', 'Adriana', 'Marcos', 'Renato', 'Sérgio', 'Cláudia', 'Paulo', 'Wesley',
+  'Elaine', 'Leandro', 'Douglas', 'Simone', 'Robson', 'Edson', 'Michele', 'Alex', 'Valdir', 'Cristiane',
+  'Gilberto', 'Tatiane', 'Fabrício', 'Rogério', 'Daniela', 'Wagner', 'Josiane', 'Everton', 'Lucas', 'Márcia',
+];
+const SOBRENOMES = [
+  'Reis', 'Ribeiro', 'Borges', 'Marques', 'Rocha', 'Guerra', 'Lima', 'Souza', 'Oliveira', 'Santos',
+  'Pereira', 'Costa', 'Almeida', 'Carvalho', 'Gomes', 'Martins', 'Araújo', 'Barbosa', 'Cardoso', 'Teixeira',
+  'Mendes', 'Nunes', 'Freitas', 'Moreira', 'Pinto', 'Batista', 'Vieira', 'Moraes', 'Correia', 'Dias',
+];
+
+/** Nome do contato. Alguns vêm só com o primeiro nome ou em minúsculas, como chegam no CRM. */
+export function nomeContato(i: number, j: number, estilo: number): string {
+  const nome = `${PRIMEIROS_NOMES[i % PRIMEIROS_NOMES.length]} ${SOBRENOMES[j % SOBRENOMES.length]}`;
+  if (estilo < 0.12) return nome.toLowerCase();
+  if (estilo < 0.3) return PRIMEIROS_NOMES[i % PRIMEIROS_NOMES.length];
+  return nome;
+}
+export const N_PRIMEIROS = PRIMEIROS_NOMES.length;
+export const N_SOBRENOMES = SOBRENOMES.length;
 
 export const CIDADES: [string, string, number][] = [
   ['São Paulo', 'SP', 9], ['Campinas', 'SP', 4], ['Ribeirão Preto', 'SP', 3], ['Sorocaba', 'SP', 3],

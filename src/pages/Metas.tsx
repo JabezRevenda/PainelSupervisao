@@ -1,23 +1,40 @@
+import { motion } from 'motion/react';
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { metasDoMes } from '../data/metrics/indicadores';
-import { progresso, valorIndicador } from '../data/metrics/okr';
-import { DAY, fmtDate, monthName, startOfQuarter, wall } from '../data/time';
-import { usePainel } from '../state/painel';
-import { Gauge } from '../ui/charts';
-import { Capsule, CardHead, fmtNum, fmtPct, Hero, Hl, Ring } from '../ui/kit';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Gauge } from '@/components/charts';
+import { fmtNum, fmtPct, NameAvatar, PageHeader, StatCard, Strong } from '@/components/kit';
+import { AnimatedNumber, EASE, GrowBar, Page, Reveal, Stagger, itemVariants } from '@/components/motion';
+import { metasDoMes } from '@/data/metrics/indicadores';
+import { progresso, valorIndicador } from '@/data/metrics/okr';
+import { DAY, fmtDate, monthName, startOfQuarter, wall } from '@/data/time';
+import { cn } from '@/lib/utils';
+import { usePainel } from '@/state/painel';
 
 function fmtValor(v: number | null, unidade: '%' | '') {
   if (v === null) return '—';
   return unidade === '%' ? fmtPct(v) : fmtNum(v);
 }
 
+type Status = 'ok' | 'atras' | 'risco' | 'sem';
+
+const STATUS: Record<Status, { rotulo: string; badge: string; cor: string }> = {
+  ok: { rotulo: 'No caminho', badge: 'border-success/30 bg-success/10 text-success', cor: 'var(--success)' },
+  atras: { rotulo: 'Um pouco atrás', badge: 'border-warning/40 bg-warning/15 text-warning-foreground', cor: 'var(--warning)' },
+  risco: { rotulo: 'Em risco', badge: 'border-primary/30 bg-primary/10 text-primary', cor: 'var(--primary)' },
+  sem: { rotulo: 'Sem linha de base', badge: 'text-muted-foreground', cor: 'var(--muted-foreground)' },
+};
+
 export function Metas() {
-  const { ds, views, dsBase, viewsBase, agora, config, vendedores, metas, okrs, nome, iniciais } = usePainel();
+  const { ds, views, dsBase, viewsBase, agora, config, vendedores, metas, okrs, nome } = usePainel();
   const p = config.params;
   const ids = vendedores.map((v) => v.id);
+  const chaveIds = ids.join();
 
-  const mes = useMemo(() => metasDoMes(views, agora, p, metas, ids), [views, agora, p, metas, ids.join()]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mes = useMemo(() => metasDoMes(views, agora, p, metas, ids), [views, agora, p, metas, chaveIds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const iniTri = startOfQuarter(agora);
   const fimTri = startOfQuarter(iniTri + 100 * DAY);
@@ -32,184 +49,215 @@ export function Metas() {
         const atual = valorIndicador(kr.indicador, ctx);
         const base = ctxBase ? valorIndicador(kr.indicador, ctxBase, true) : null;
         const prog = progresso(kr, base, atual);
-        const status = prog === null ? 'sem' : prog >= triPct - 5 ? 'ok' : prog >= triPct - 25 ? 'atras' : 'risco';
+        const status: Status = prog === null ? 'sem' : prog >= triPct - 5 ? 'ok' : prog >= triPct - 25 ? 'atras' : 'risco';
         return { kr, atual, base, prog, status };
       });
       const ps = resultados.map((r) => r.prog).filter((x): x is number => x !== null);
       return { o, resultados, media: ps.length ? ps.reduce((a, b) => a + b, 0) / ps.length : null };
     });
-  }, [okrs, views, ds, dsBase, viewsBase, p, metas, ids.join(), triPct]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const STATUS: Record<string, [string, string, string]> = {
-    ok: ['No caminho', 'tag', 'fill-text'],
-    atras: ['Um pouco atrás', 'tag tag--amber', 'fill-amber'],
-    risco: ['Em risco', 'tag tag--red', 'fill-red'],
-    sem: ['Sem linha de base', 'tag', 'fill-neutral'],
-  };
+  }, [okrs, views, ds, dsBase, viewsBase, p, metas, chaveIds, triPct]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const esperadoAteHoje = (meta: number) => (meta * mes.diasPassados) / Math.max(mes.diasTotal, 1);
+  const mesNome = monthName(agora);
 
   return (
-    <>
-      <section className="row" style={{ gap: 24 }}>
-        <div className="stack gap-20" style={{ flex: '3 1 440px', minWidth: 0, justifyContent: 'center' }}>
-          <Hero
-            eyebrow={`Meta de ${monthName(agora)} · contratos ganhos`}
-            title={
-              mes.faltam > 0 ? (
-                <>
-                  Faltam <Hl>{mes.faltam} contratos</Hl> <Capsule /> para a <Ring>meta</Ring> do mês.
-                </>
+    <Page>
+      <PageHeader
+        title="Metas e OKRs"
+        description={
+          mes.faltam > 0 ? (
+            <>
+              Faltam <Strong tone="primary">{mes.faltam} cadastros</Strong> para a meta de {mesNome}. Restam {fmtNum(mes.diasRestantes, 0)} dias úteis. A venda conta no mês em que o
+              vendedor move o lead para Cadastrado, com contrato assinado e pago.
+            </>
+          ) : (
+            <>
+              A meta de {mesNome} já foi batida: <Strong tone="primary">{mes.ganhos} cadastros</Strong> de {mes.meta}.
+            </>
+          )
+        }
+        actions={
+          <Button variant="outline" size="sm" asChild>
+            <Link to="/configuracoes">Editar metas</Link>
+          </Button>
+        }
+      />
+
+      <Stagger className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        {[
+          { label: 'Cadastrados no mês', value: mes.ganhos, sufixo: `de ${mes.meta}`, delta: <span className="text-muted-foreground">{mes.ganhosMesAnterior} em {monthName(mes.ini - DAY)}</span> },
+          {
+            label: 'Dias úteis',
+            value: mes.diasPassados,
+            sufixo: `de ${mes.diasTotal}`,
+            delta: <GrowBar pct={(mes.diasPassados / Math.max(mes.diasTotal, 1)) * 100} color="var(--muted-foreground)" />,
+          },
+          { label: 'Ritmo atual', value: mes.ritmoAtual, format: (v: number) => fmtNum(v, 1), sufixo: 'por dia útil', delta: <span className="text-muted-foreground">cadastros por dia útil até hoje</span> },
+          {
+            label: 'Ritmo necessário',
+            value: mes.ritmoNecessario,
+            format: (v: number) => fmtNum(v, 1),
+            sufixo: 'por dia útil',
+            delta:
+              mes.ritmoNecessario !== null && mes.ritmoNecessario > mes.ritmoAtual ? (
+                <span className="text-primary">{fmtNum(mes.ritmoNecessario - mes.ritmoAtual, 1)} acima do ritmo atual</span>
               ) : (
-                <>
-                  A <Ring>meta</Ring> de {monthName(agora)} <Capsule /> já foi <Hl>batida</Hl>.
-                </>
-              )
-            }
-          />
-          <div className="grid grid-auto-160">
-            <div className="mini">
-              <span className="faint" style={{ fontSize: 12 }}>Ganhos até hoje</span>
-              <span className="num" style={{ fontSize: 30 }}>
-                {mes.ganhos} <span className="faint" style={{ fontSize: 14 }}>de {mes.meta}</span>
-              </span>
+                <span className="text-muted-foreground">o ritmo atual já basta</span>
+              ),
+          },
+        ].map((k) => (
+          <motion.div key={k.label} variants={itemVariants}>
+            <StatCard {...k} className="h-full" />
+          </motion.div>
+        ))}
+      </Stagger>
+
+      <Reveal className="grid gap-4 lg:grid-cols-3">
+        <Card className="h-full">
+          <CardHeader>
+            <CardTitle>Projeção do mês</CardTitle>
+            <CardDescription>No ritmo atual, combinado com o ritmo de {monthName(mes.ini - DAY)} nos primeiros dias</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-1 flex-col justify-center gap-5">
+            <div className="relative">
+              <Gauge pct={mes.projecaoPct ?? 0} label={`Projeção de ${fmtPct(mes.projecaoPct)} da meta`} />
+              <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
+                <AnimatedNumber value={mes.projecaoPct ?? 0} format={(v) => `${Math.round(v)}%`} className="text-4xl font-semibold tracking-tight" />
+                <span className="text-xs text-muted-foreground">da meta</span>
+              </div>
             </div>
-            <div className="mini">
-              <span className="faint" style={{ fontSize: 12 }}>Ritmo atual</span>
-              <span className="num" style={{ fontSize: 30 }}>
-                {fmtNum(mes.ritmoAtual, 1)} <span className="faint" style={{ fontSize: 14 }}>por dia útil</span>
-              </span>
+            <div className="grid grid-cols-2 divide-x rounded-lg border text-center">
+              <div className="flex flex-col gap-0.5 p-3">
+                <span className="text-xs text-muted-foreground">Meta</span>
+                <span className="num text-xl font-semibold">{mes.meta}</span>
+              </div>
+              <div className="flex flex-col gap-0.5 p-3">
+                <span className="text-xs text-muted-foreground">Projeção</span>
+                <span className={cn('num text-xl font-semibold', mes.projecao < mes.meta && 'text-primary')}>{mes.projecao}</span>
+              </div>
             </div>
-            <div className="mini" style={{ borderColor: 'rgba(230,35,78,.4)', background: 'rgba(230,35,78,.08)' }}>
-              <span className="accent" style={{ fontSize: 12 }}>Ritmo necessário</span>
-              <span className="num accent" style={{ fontSize: 30 }}>
-                {fmtNum(mes.ritmoNecessario, 1)} <span style={{ fontSize: 14 }}>por dia útil</span>
-              </span>
-            </div>
-          </div>
-          <p className="muted" style={{ margin: 0, fontSize: 14, lineHeight: 1.55 }}>
-            Restam {fmtNum(mes.diasRestantes, 1)} dias úteis. A venda conta no mês em que o vendedor marca Ganho, depois do contrato assinado e pago. Em {monthName(mes.ini - DAY)} foram {mes.ganhosMesAnterior} contratos.
+          </CardContent>
+        </Card>
+        <Card className="gap-0 pb-0 lg:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle>Meta por vendedor · {mesNome}</CardTitle>
+            <CardDescription>Cada quadrado é um cadastro da meta. A linha mostra onde o vendedor deveria estar hoje.</CardDescription>
+          </CardHeader>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="pl-4">Vendedor</TableHead>
+                <TableHead className="w-[45%]">Cadastros</TableHead>
+                <TableHead className="text-right">Resultado</TableHead>
+                <TableHead className="pr-4">Situação</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {mes.porVendedor.map((x, ri) => {
+                const esperado = esperadoAteHoje(x.meta);
+                const [rotulo, cor] =
+                  x.meta > 0 && x.ganhos >= x.meta
+                    ? ['Meta batida', 'text-success']
+                    : x.ganhos >= esperado + 0.5
+                      ? ['Acima do ritmo', 'text-success']
+                      : x.ganhos >= esperado - 0.5
+                        ? ['No ritmo', 'text-foreground']
+                        : x.ganhos === 0
+                          ? ['Sem cadastro no mês', 'text-warning-foreground']
+                          : ['Abaixo do ritmo', 'text-warning-foreground'];
+                const slots = Math.max(x.meta, x.ganhos, 1);
+                return (
+                  <TableRow key={x.id}>
+                    <TableCell className="pl-4">
+                      <span className="flex items-center gap-2.5">
+                        <NameAvatar nome={nome(x.id)} size={26} />
+                        {nome(x.id)}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="relative grid gap-1" style={{ gridTemplateColumns: `repeat(${slots}, minmax(0, 1fr))` }}>
+                        {Array.from({ length: slots }, (_, i) => (
+                          <span key={i} className="relative h-3 overflow-hidden rounded-[3px] bg-muted">
+                            {i < x.ganhos && (
+                              <motion.span
+                                className="absolute inset-0 origin-left rounded-[3px] bg-primary"
+                                initial={{ scaleX: 0 }}
+                                animate={{ scaleX: 1 }}
+                                transition={{ duration: 0.35, ease: EASE, delay: 0.15 + ri * 0.04 + i * 0.05 }}
+                              />
+                            )}
+                          </span>
+                        ))}
+                        <motion.span
+                          aria-hidden="true"
+                          title="Onde deveria estar hoje"
+                          className="absolute -inset-y-1 w-0.5 rounded-full bg-foreground"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.3, delay: 0.5 + ri * 0.04 }}
+                          style={{ left: `calc(${Math.min((esperado / slots) * 100, 100)}% - 1px)` }}
+                        />
+                      </div>
+                    </TableCell>
+                    <TableCell className="num text-right">
+                      <span className="font-medium">{x.ganhos}</span> <span className="text-muted-foreground">de {x.meta}</span>
+                    </TableCell>
+                    <TableCell className={cn('pr-4 text-sm font-medium', cor)}>{rotulo}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </Card>
+      </Reveal>
+
+      <Reveal className="flex flex-wrap items-end justify-between gap-2 pt-2">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-lg font-semibold tracking-tight">OKRs · {trimestre}</h2>
+          <p className="text-sm text-muted-foreground">
+            {fmtPct(triPct)} do trimestre já passou. A linha de base é o CRM em {fmtDate(iniTri)}.
           </p>
         </div>
+      </Reveal>
 
-        <div className="card card--feature" style={{ flex: '2 1 340px', padding: '24px 26px 22px' }}>
-          <div className="grid-bg" />
-          <div className="between" style={{ position: 'relative' }}>
-            <div className="stack gap-4">
-              <span className="muted" style={{ fontSize: 13 }}>Meta</span>
-              <span className="num" style={{ fontSize: 24, fontWeight: 600, color: '#FF6B8A' }}>{mes.meta}</span>
-            </div>
-            <div className="stack gap-4" style={{ textAlign: 'right' }}>
-              <span className="muted" style={{ fontSize: 13 }}>Projeção</span>
-              <span className="num" style={{ fontSize: 24, fontWeight: 600, color: '#FF6B8A' }}>{mes.projecao}</span>
-            </div>
-          </div>
-          <div style={{ position: 'relative', height: 1, background: 'rgba(255,255,255,.09)', margin: '4px 0' }} />
-          <div style={{ position: 'relative' }}>
-            <Gauge pct={mes.projecaoPct ?? 0} label={`Projeção de ${fmtPct(mes.projecaoPct)} da meta`} />
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, textAlign: 'center' }}>
-              <div className="big" style={{ fontSize: 'clamp(50px,5vw,66px)' }}>{fmtPct(mes.projecaoPct)}</div>
-              <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>da meta no ritmo atual</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="card card--flush">
-        <div className="card-pad between">
-          <CardHead title={`Meta por vendedor · ${monthName(agora)}`} sub="Cada quadrado é um contrato da meta. A marca mostra onde o vendedor deveria estar hoje." />
-          <Link to="/configuracoes" className="btn btn--ghost btn--sm">
-            Editar metas
-          </Link>
-        </div>
-        <div role="table" aria-label="Meta por vendedor">
-          {mes.porVendedor.map((x) => {
-            const esperado = esperadoAteHoje(x.meta);
-            const status = x.ganhos >= x.meta ? ['Meta batida', 'var(--accent-text)'] : x.ganhos >= esperado + 0.5 ? ['Acima do ritmo', 'var(--accent-text)'] : x.ganhos >= esperado - 0.5 ? ['No ritmo', 'var(--text)'] : x.ganhos === 0 ? ['Sem ganho no mês', 'var(--amber-text)'] : ['Abaixo do ritmo', 'var(--amber-text)'];
-            const slots = Math.max(x.meta, x.ganhos);
-            return (
-              <div role="row" key={x.id} className="trow clickable" style={{ gridTemplateColumns: 'minmax(160px,1.1fr) minmax(220px,2.4fr) 80px minmax(130px,1fr)', gap: 16 }}>
-                <span role="cell" style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span className="avatar">{iniciais(x.id)}</span>
-                  <span style={{ fontWeight: 500 }}>{nome(x.id)}</span>
-                </span>
-                <span role="cell" style={{ position: 'relative', display: 'grid', gridTemplateColumns: `repeat(${slots}, minmax(0,1fr))`, gap: 6 }}>
-                  {Array.from({ length: slots }, (_, i) => (
-                    <span
-                      key={i}
-                      style={{
-                        height: 14,
-                        borderRadius: 5,
-                        background: i < x.ganhos ? 'linear-gradient(90deg,#C81640,#FF6B8A)' : 'var(--track)',
-                        boxShadow: i < x.ganhos ? '0 0 14px rgba(230,35,78,.5)' : 'none',
-                      }}
-                    />
-                  ))}
-                  <span aria-hidden="true" title="Onde deveria estar hoje" style={{ position: 'absolute', top: -4, bottom: -4, left: `calc(${(esperado / slots) * 100}% - 1px)`, width: 2, borderRadius: 1, background: 'var(--text)' }} />
-                </span>
-                <span role="cell" className="num">
-                  <strong>{x.ganhos}</strong> <span className="faint">de {x.meta}</span>
-                </span>
-                <span role="cell" style={{ fontSize: 13, fontWeight: 500, color: status[1] }}>{status[0]}</span>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      <section className="stack gap-16">
-        <div className="between" style={{ alignItems: 'flex-end' }}>
-          <div className="stack gap-6">
-            <span className="eyebrow">OKRs · {trimestre}</span>
-            <h2 className="h2" style={{ fontSize: 28 }}>Objetivos do trimestre</h2>
-          </div>
-          <span className="muted" style={{ fontSize: 13 }}>
-            {fmtPct(triPct)} do trimestre já passou · linha de base: o CRM em {fmtDate(iniTri)}
-          </span>
-        </div>
-        {krs.map(({ o, resultados, media }) => (
-          <div className="card" key={o.id} style={{ gap: 18 }}>
-            <div className="between">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <span
-                  className="num"
-                  style={{ width: 44, height: 44, flex: '0 0 44px', borderRadius: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: '#fff', background: 'radial-gradient(circle at 30% 28%,#FF8AA4 0%,#E6234E 42%,#9C0F31 100%)', boxShadow: '0 0 24px rgba(230,35,78,.5)' }}
-                >
-                  {o.codigo}
-                </span>
-                <span className="num" style={{ fontSize: 20, fontWeight: 500 }}>{o.titulo}</span>
-              </div>
-              <span className="muted" style={{ fontSize: 13 }}>
-                Progresso médio <strong style={{ color: 'var(--text)' }}>{fmtPct(media)}</strong>
-              </span>
-            </div>
-            <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
-              {resultados.map(({ kr, atual, base, prog, status }) => (
-                <div className="mini" key={kr.id} style={{ gap: 12, padding: 16 }}>
-                  <div className="between" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-                    <span style={{ fontSize: 14, fontWeight: 500, lineHeight: 1.4 }}>{kr.nome}</span>
-                    <span className={STATUS[status][1]} style={{ flex: '0 0 auto' }}>{STATUS[status][0]}</span>
+      {krs.map(({ o, resultados, media }) => (
+        <Reveal key={o.id}>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-3">
+                <span className="num inline-flex h-7 items-center rounded-md bg-primary px-2 text-xs font-semibold text-primary-foreground">{o.codigo}</span>
+                {o.titulo}
+              </CardTitle>
+              <CardAction className="text-sm text-muted-foreground">
+                Progresso médio <span className="num font-medium text-foreground">{fmtPct(media)}</span>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-3">
+              {resultados.map(({ kr, atual, base, prog, status }, i) => (
+                <div key={kr.id} className="flex flex-col gap-3 rounded-lg border p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="text-sm leading-snug font-medium">{kr.nome}</span>
+                    <Badge variant="outline" className={cn('shrink-0', STATUS[status].badge)}>
+                      {STATUS[status].rotulo}
+                    </Badge>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                    <span className="big" style={{ fontSize: 30 }}>{fmtValor(atual, kr.unidade)}</span>
-                    <span className="faint" style={{ fontSize: 13 }}>alvo {fmtValor(kr.alvo, kr.unidade)}</span>
+                  <div className="flex items-baseline gap-2">
+                    <span className="num text-2xl font-semibold tracking-tight">{fmtValor(atual, kr.unidade)}</span>
+                    <span className="text-xs text-muted-foreground">alvo {fmtValor(kr.alvo, kr.unidade)}</span>
                   </div>
-                  <span className="track" style={{ height: 8, minHeight: 8, maxHeight: 8 }}>
-                    <span className={STATUS[status][2]} style={{ width: `${prog ?? 0}%` }} />
-                  </span>
-                  <div className="between faint" style={{ fontSize: 12 }}>
+                  <GrowBar pct={prog} color={STATUS[status].cor} delay={0.15 + i * 0.06} />
+                  <div className="flex justify-between text-xs text-muted-foreground">
                     <span>Linha de base {fmtValor(base, kr.unidade)}</span>
                     <span>{prog === null ? '—' : `${fmtPct(prog)} do caminho`}</span>
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-        ))}
-        <p className="faint" style={{ margin: 0, fontSize: 12 }}>
-          Os alvos são exemplos até a supervisão fechar a linha de base de 30 dias. Eles podem ser editados em Configurações.
-        </p>
-      </section>
-    </>
+            </CardContent>
+          </Card>
+        </Reveal>
+      ))}
+
+      <p className="text-xs text-muted-foreground">Os alvos são exemplos até a supervisão fechar a linha de base de 30 dias. Eles podem ser editados em Configurações.</p>
+    </Page>
   );
 }

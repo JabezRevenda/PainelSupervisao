@@ -19,9 +19,10 @@ import {
   type Canal,
   type Dataset,
   type Etapa,
-  ETAPAS_FUNIL,
+  FUNIL,
   type Interacao,
   type Parametros,
+  type PassoFunil,
 } from '../types';
 import { alertas, type LeadView, situacaoSla, type TipoAlerta } from './estado';
 
@@ -222,23 +223,23 @@ export function resumoDemos(views: LeadView[], agora: number, ini: number, fim: 
 // ---------- funil ----------
 
 export interface EtapaFunil {
-  etapa: Etapa;
+  etapa: PassoFunil;
   n: number;
-  /** % que avançou da etapa anterior para esta */
+  /** % que avançou do passo anterior para este */
   conversao: number | null;
-  /** Dias corridos médios entre a etapa anterior e esta */
+  /** Dias corridos médios entre o passo anterior e este */
   diasMedios: number | null;
 }
 
 export function funil(views: LeadView[], ini: number, fim: number, filtro?: (v: LeadView) => boolean): EtapaFunil[] {
   const coorte = views.filter((v) => noIntervalo(v.recebidoEm, ini, fim) && (!filtro || filtro(v)));
-  return ETAPAS_FUNIL.map((etapa, i) => {
-    const chegaram = coorte.filter((v) => v.atingiu[etapa] !== undefined);
+  return FUNIL.map((etapa, i) => {
+    const chegaram = coorte.filter((v) => v.passo[etapa] !== undefined);
     if (i === 0) return { etapa, n: coorte.length, conversao: null, diasMedios: null };
-    const anterior = ETAPAS_FUNIL[i - 1];
-    const base = coorte.filter((v) => v.atingiu[anterior] !== undefined).length;
+    const anterior = FUNIL[i - 1];
+    const base = coorte.filter((v) => v.passo[anterior] !== undefined).length;
     const deltas = chegaram
-      .map((v) => (v.atingiu[etapa]! - (v.atingiu[anterior] ?? v.recebidoEm)) / DAY)
+      .map((v) => (v.passo[etapa]! - (v.passo[anterior] ?? v.recebidoEm)) / DAY)
       .filter((x) => x >= 0);
     return {
       etapa,
@@ -381,20 +382,24 @@ export function perdas(views: LeadView[], ini: number, fim: number) {
   const perdidos = views.filter((v) => v.status === 'perdido' && noIntervalo(v.fechadoEm, ini, fim));
   const porMotivo = new Map<string, number>();
   const porEtapa = new Map<Etapa, number>();
-  const porVendedor = new Map<string, { n: number; motivos: Map<string, number> }>();
+  /** Para onde o lead foi: Resgate - SDR ou Limbo - SDR. */
+  const porDestino = new Map<Etapa, number>();
+  const porVendedor = new Map<string, { n: number; motivos: Map<string, number>; resgate: number }>();
   const semInteracao: LeadView[] = [];
   for (const v of perdidos) {
     const m = v.motivoPerdaId ?? 'sem_motivo';
     porMotivo.set(m, (porMotivo.get(m) ?? 0) + 1);
     const e = v.etapaPerda ?? 'demo_agendada';
     porEtapa.set(e, (porEtapa.get(e) ?? 0) + 1);
-    const pv = porVendedor.get(v.vendedorId) ?? { n: 0, motivos: new Map() };
+    porDestino.set(v.etapa, (porDestino.get(v.etapa) ?? 0) + 1);
+    const pv = porVendedor.get(v.vendedorId) ?? { n: 0, motivos: new Map(), resgate: 0 };
     pv.n++;
     pv.motivos.set(m, (pv.motivos.get(m) ?? 0) + 1);
+    if (v.etapa === 'resgate_sdr') pv.resgate++;
     porVendedor.set(v.vendedorId, pv);
     if (v.interacoes.filter((i) => i.registradoEm >= v.atribuidoEm).length === 0) semInteracao.push(v);
   }
-  return { total: perdidos.length, porMotivo, porEtapa, porVendedor, semInteracao };
+  return { total: perdidos.length, porMotivo, porEtapa, porDestino, porVendedor, semInteracao };
 }
 
 // ---------- metas ----------

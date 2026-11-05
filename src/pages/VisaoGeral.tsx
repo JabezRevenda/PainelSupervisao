@@ -1,13 +1,18 @@
+import { ArrowRight, Clock, MessageCircle, Timer, Users } from 'lucide-react';
+import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ALERTA_INFO } from '../data/metrics/estado';
-import { carteira, fila, metasDoMes, resumoAtendimento, serieDiaria } from '../data/metrics/indicadores';
-import { DAY, fmtDate, fmtHours, fmtMinutes, HOUR, isBusinessDay, minutesOfDay, monthName, startOfDay } from '../data/time';
-import { ETAPA_LABEL } from '../data/types';
-import { usePainel } from '../state/painel';
-import { Gauge, Sparkline, StackedColumns } from '../ui/charts';
-import { Icon } from '../ui/icons';
-import { Avatar, Capsule, CardHead, Delta, fmtNum, fmtPct, Hero, Hl, LinkArrow, Ring, Seg } from '../ui/kit';
+import { Button } from '@/components/ui/button';
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Gauge, StackedColumns } from '@/components/charts';
+import { Etiqueta, etiquetaDoAlerta } from '@/components/crm';
+import { Delta, Dot, fmtNum, fmtPct, NameAvatar, PageHeader, StatCard, Strong } from '@/components/kit';
+import { AnimatedNumber, EASE, GrowBar, Page, Reveal, Segmented, Stagger, itemVariants } from '@/components/motion';
+import { carteira, fila, metasDoMes, resumoAtendimento, serieDiaria } from '@/data/metrics/indicadores';
+import { DAY, fmtDate, fmtHours, fmtMinutes, HOUR, isBusinessDay, minutesOfDay, monthName, startOfDay } from '@/data/time';
+import { ETAPA_COR, ETAPA_LABEL } from '@/data/types';
+import { usePainel } from '@/state/painel';
 
 type Periodo = 'hoje' | '7d' | '30d';
 
@@ -17,11 +22,11 @@ function saudacao(agora: number) {
 }
 
 export function VisaoGeral() {
-  const { ds, views, agora, config, vendedores, metas, nome, iniciais, abrirLead } = usePainel();
+  const { ds, views, agora, config, vendedores, metas, nome, abrirLead } = usePainel();
   const p = config.params;
   const [periodo, setPeriodo] = useState<Periodo>('30d');
 
-  const dados = useMemo(() => {
+  const d = useMemo(() => {
     const ids = vendedores.map((v) => v.id);
     const cart = carteira(views, agora, p);
     const mes = metasDoMes(views, agora, p, metas, ids);
@@ -37,348 +42,390 @@ export function VisaoGeral() {
     const atual = resumoAtendimento(views, ds, p, ini, fim);
     const prev = resumoAtendimento(views, ds, p, pIni, pFim);
     const serie = serieDiaria(views, ds, p, nDias);
-    const serie15 = periodo === '30d' ? serie : serieDiaria(views, ds, p, 15);
-    const r30 = periodo === '30d' ? atual : resumoAtendimento(views, ds, p, agora - 30 * DAY, agora);
-    const itensFila = fila(views, agora, p);
-    const parados = ids
-      .map((id) => ({ id, n: views.filter((v) => v.vendedorId === id && v.status === 'aberto' && v.horasSemInteracao >= p.paradoHoras).length }))
-      .filter((x) => x.n > 0)
-      .sort((a, b) => b.n - a.n);
+    const serie15 = serieDiaria(views, ds, p, 15);
+    const r30 = resumoAtendimento(views, ds, p, agora - 30 * DAY, agora);
+    const itensFila = fila(views, agora, p).filter((x) => x.alertas[0].gravidade <= 5);
     const ranking = ids
       .map((id) => ({
         id,
         ganhos: mes.porVendedor.find((x) => x.id === id)?.ganhos ?? 0,
         sla: resumoAtendimento(views, ds, p, agora - 30 * DAY, agora, id).slaPct ?? 0,
       }))
-      .sort((a, b) => b.ganhos - a.ganhos || b.sla - a.sla)
-      .slice(0, 5);
-    const usoCrm = ids.map((id) => ({ id, uso: resumoAtendimento(views, ds, p, agora - 30 * DAY, agora, id).usoWhatsappCrmPct ?? 0 }));
-    // demos de hoje
-    let realizadas = 0, agoraN = 0, faltaram = 0, semDesfecho = 0, aSeguir = 0;
-    for (const v of views) for (const d of v.demos) {
-      if (d.agendadaPara < hoje || d.agendadaPara >= hoje + DAY) continue;
-      if (d.status === 'realizada') realizadas++;
-      else if (d.status === 'nao_compareceu') faltaram++;
-      else if (d.agendadaPara > agora) aSeguir++;
-      else if (agora - d.agendadaPara <= HOUR) agoraN++;
-      else semDesfecho++;
-    }
-    return { cart, mes, atual, prev, serie, serie15, r30, itensFila, parados, ranking, usoCrm, demos: { realizadas, agoraN, faltaram, semDesfecho, aSeguir, total: realizadas + agoraN + faltaram + semDesfecho + aSeguir } };
+      .sort((a, b) => b.ganhos - a.ganhos || b.sla - a.sla);
+    const baixoUso = ids.filter((id) => (resumoAtendimento(views, ds, p, agora - 30 * DAY, agora, id).usoWhatsappCrmPct ?? 0) < 10);
+    let realizadas = 0, emAndamento = 0, faltaram = 0, semDesfecho = 0, aSeguir = 0;
+    for (const v of views)
+      for (const dm of v.demos) {
+        if (dm.agendadaPara < hoje || dm.agendadaPara >= hoje + DAY) continue;
+        if (dm.status === 'realizada') realizadas++;
+        else if (dm.status === 'nao_compareceu') faltaram++;
+        else if (dm.agendadaPara > agora) aSeguir++;
+        else if (agora - dm.agendadaPara <= HOUR) emAndamento++;
+        else semDesfecho++;
+      }
+    const demos = { realizadas, emAndamento, faltaram, semDesfecho, aSeguir, total: realizadas + emAndamento + faltaram + semDesfecho + aSeguir };
+    return { cart, mes, atual, prev, serie, serie15, r30, itensFila, ranking, baixoUso, demos };
   }, [views, ds, agora, p, periodo, vendedores, metas]);
 
-  const { cart, mes, atual, prev, serie, serie15, r30, itensFila, parados, ranking, usoCrm, demos } = dados;
+  const { cart, mes, atual, prev, serie, serie15, r30, itensFila, ranking, baixoUso, demos } = d;
   const dif = mes.projecao - mes.meta;
-  const baixoUso = usoCrm.filter((x) => x.uso < 10).map((x) => nome(x.id));
-  const total15 = serie15.reduce((s, d) => s + d.recebidos, 0);
-  const noPrazo15 = serie15.reduce((s, d) => s + d.noPrazo, 0);
-  const fora15 = serie15.reduce((s, d) => s + d.fora, 0);
-  const sparks = {
-    recebidos: serie.map((d) => d.recebidos),
-    sla: serie.map((d) => (d.noPrazo + d.fora ? (d.noPrazo / (d.noPrazo + d.fora)) * 100 : 0)),
-    mediana: serie.map((d) => d.medianaMin ?? 0),
-    interacoes: serie.map((d) => d.interacoes),
-  };
-  const rotPeriodo = periodo === 'hoje' ? 'em relação ao dia útil anterior' : periodo === '7d' ? 'em relação aos 7 dias anteriores' : 'em relação aos 30 dias anteriores';
-  const maxParados = Math.max(1, ...parados.map((x) => x.n));
+  const rot = periodo === 'hoje' ? 'vs. dia útil anterior' : periodo === '7d' ? 'vs. 7 dias anteriores' : 'vs. 30 dias anteriores';
+  const noPrazo15 = serie15.reduce((s, x) => s + x.noPrazo, 0);
+  const fora15 = serie15.reduce((s, x) => s + x.fora, 0);
+  const total15 = serie15.reduce((s, x) => s + x.recebidos, 0);
+
+  const linhasCarteira = [
+    { rotulo: 'Parados', ajuda: `mais de ${p.paradoHoras}h sem interação`, n: cart.parados, cor: 'var(--primary)' },
+    { rotulo: 'Sem primeiro contato', ajuda: `${cart.slaEstourado} com o prazo de 1 hora estourado`, n: cart.semContato, cor: 'var(--primary)' },
+    { rotulo: 'Em atenção', ajuda: `de ${p.atencaoHoras}h a ${p.paradoHoras}h sem interação`, n: cart.atencao, cor: 'var(--warning)' },
+    { rotulo: 'Passo vencido', ajuda: 'próxima ação com data passada', n: cart.passoVencido, cor: 'var(--warning)' },
+    { rotulo: 'Sem próximo passo', ajuda: 'nenhuma ação agendada', n: cart.semProximoPasso, cor: 'var(--chart-2)' },
+  ];
 
   return (
-    <>
-      <section className="row" style={{ gap: 24 }}>
-        <div className="stack gap-20" style={{ flex: '3 1 440px', minWidth: 0, justifyContent: 'center' }}>
-          <Hero
-            eyebrow={`Supervisão do Inside Sales · ${monthName(agora)}`}
-            title={
-              <>
-                {saudacao(agora)}. Agora <Hl>{cart.parados} {cart.parados === 1 ? 'lead está parado' : 'leads estão parados'}</Hl> <Capsule /> e <Ring>{cart.semContato}</Ring> {cart.semContato === 1 ? 'espera' : 'esperam'} o primeiro contato.
-              </>
-            }
-            text={
-              <>
-                São {cart.abertos} leads abertos com {vendedores.length} vendedores. No ritmo atual, {monthName(agora)} fecha com {mes.projecao} contratos,{' '}
-                {dif === 0 ? 'exatamente na meta' : `${Math.abs(dif)} ${dif > 0 ? 'acima' : 'abaixo'} da meta de ${mes.meta}`}.
-              </>
-            }
-          />
-          <div className="row" style={{ gap: 12 }}>
-            <Link to="/fila" className="btn btn--primary" style={{ paddingRight: 12 }}>
-              Abrir fila de risco
-              <span className="btn-arrow">
-                <Icon name="seta" size={14} stroke={2.6} />
-              </span>
-            </Link>
-            <Link to="/performance" className="btn btn--ghost">
-              Ver vendedores
-            </Link>
-          </div>
-        </div>
+    <Page>
+      <PageHeader
+        title="Visão geral"
+        description={
+          <>
+            {saudacao(agora)}. Agora <Strong tone="primary">{cart.parados} leads estão parados</Strong> e <Strong tone="primary">{cart.semContato}</Strong> esperam o
+            primeiro contato. São <Strong>{cart.abertos} leads abertos</Strong> com {vendedores.length} vendedores. No ritmo atual, {monthName(agora)} fecha com{' '}
+            <Strong>{mes.projecao} contratos</Strong>, {dif === 0 ? 'exatamente na meta' : `${Math.abs(dif)} ${dif > 0 ? 'acima' : 'abaixo'} da meta de ${mes.meta}`}.
+          </>
+        }
+        actions={
+          <>
+            <Button variant="outline" asChild>
+              <Link to="/kanban">Abrir Kanban</Link>
+            </Button>
+            <Button asChild>
+              <Link to="/fila">
+                Fila de risco <ArrowRight />
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
-        <div className="card card--feature" style={{ flex: '2 1 340px', padding: '24px 26px 22px' }}>
-          <div className="grid-bg" />
-          <div className="between" style={{ position: 'relative', alignItems: 'flex-start' }}>
-            <div className="stack gap-4">
-              <span className="muted" style={{ fontSize: 13 }}>Ganhos em {monthName(agora)}</span>
-              <span className="num" style={{ fontSize: 24, fontWeight: 600, color: '#FF6B8A' }}>
-                {mes.ganhos} de {mes.meta}
-              </span>
-            </div>
-            <div className="stack gap-4" style={{ textAlign: 'right' }}>
-              <span className="muted" style={{ fontSize: 13 }}>Projeção do mês</span>
-              <span className="num" style={{ fontSize: 24, fontWeight: 600, color: '#FF6B8A' }}>
-                {mes.projecao} contratos
-              </span>
-            </div>
-          </div>
-          <div style={{ position: 'relative', height: 1, background: 'rgba(255,255,255,.09)', margin: '4px 0' }} />
-          <div style={{ position: 'relative' }}>
-            <Gauge pct={mes.projecaoPct ?? 0} label={`Projeção de ${fmtPct(mes.projecaoPct)} da meta de contratos`} />
-            <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, textAlign: 'center' }}>
-              <div className="big" style={{ fontSize: 'clamp(50px,5vw,66px)' }}>{fmtPct(mes.projecaoPct)}</div>
-              <div className="muted" style={{ fontSize: 13, marginTop: 8 }}>
-                da meta no ritmo atual · <span style={{ color: '#FF8AA4' }}>{fmtNum(mes.diasPassados, 1)} de {mes.diasTotal} dias úteis</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <Reveal className="flex items-center justify-between gap-3">
+        <h2 className="text-base font-medium">Atendimento</h2>
+        <Segmented id="periodo" label="Período" value={periodo} onChange={setPeriodo} options={[['hoje', 'Hoje'], ['7d', '7 dias'], ['30d', '30 dias']]} />
+      </Reveal>
 
-      <section className="between">
-        <h2 className="h2">Atendimento</h2>
-        <Seg label="Período dos indicadores" value={periodo} onChange={setPeriodo} options={[['hoje', 'Hoje'], ['7d', '7 dias'], ['30d', '30 dias']]} />
-      </section>
-
-      <section className="grid grid-auto-230" aria-label="Indicadores de atendimento">
+      <Stagger className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: 'Leads recebidos pelos vendedores', valor: fmtNum(atual.recebidos), unid: periodo === 'hoje' ? 'hoje' : 'leads', spark: sparks.recebidos, icon: 'pessoas' as const, delta: <Delta v={prev.recebidos ? ((atual.recebidos - prev.recebidos) / prev.recebidos) * 100 : null} unidade="%" sufixo={rotPeriodo} neutro /> },
-          { label: 'Primeiro contato em até 1 hora útil', valor: fmtPct(atual.slaPct), unid: 'meta 85%', spark: sparks.sla, icon: 'relogio' as const, delta: <Delta v={atual.slaPct !== null && prev.slaPct !== null ? atual.slaPct - prev.slaPct : null} sufixo={rotPeriodo} /> },
-          { label: 'Tempo mediano até o 1º contato', valor: atual.medianaPrimeiroContatoMin !== null ? fmtMinutes(atual.medianaPrimeiroContatoMin) : '—', unid: 'úteis', spark: sparks.mediana, icon: 'cronometro' as const, delta: <Delta v={atual.medianaPrimeiroContatoMin !== null && prev.medianaPrimeiroContatoMin !== null ? atual.medianaPrimeiroContatoMin - prev.medianaPrimeiroContatoMin : null} unidade="min" invert sufixo={rotPeriodo} /> },
-          { label: 'Interações registradas no CRM', valor: fmtNum(atual.interacoes), unid: atual.interacoesPorLead ? `${fmtNum(atual.interacoesPorLead, 1)} por lead` : '', spark: sparks.interacoes, icon: 'conversa' as const, delta: <Delta v={prev.interacoes ? ((atual.interacoes - prev.interacoes) / prev.interacoes) * 100 : null} unidade="%" sufixo={rotPeriodo} /> },
+          {
+            label: 'Leads recebidos',
+            value: atual.recebidos,
+            icon: <Users />,
+            spark: serie.map((x) => x.recebidos),
+            delta: <Delta v={prev.recebidos ? ((atual.recebidos - prev.recebidos) / prev.recebidos) * 100 : null} unidade="%" sufixo={rot} neutro />,
+          },
+          {
+            label: 'Primeiro contato em até 1 hora útil',
+            value: atual.slaPct,
+            format: (v: number) => `${Math.round(v)}%`,
+            sufixo: 'meta 85%',
+            icon: <Clock />,
+            spark: serie.map((x) => (x.noPrazo + x.fora ? (x.noPrazo / (x.noPrazo + x.fora)) * 100 : 0)),
+            delta: <Delta v={atual.slaPct !== null && prev.slaPct !== null ? atual.slaPct - prev.slaPct : null} sufixo={rot} />,
+          },
+          {
+            label: 'Tempo mediano até o 1º contato',
+            value: atual.medianaPrimeiroContatoMin,
+            format: (v: number) => fmtMinutes(v),
+            icon: <Timer />,
+            spark: serie.map((x) => x.medianaMin ?? 0),
+            delta: (
+              <Delta
+                v={atual.medianaPrimeiroContatoMin !== null && prev.medianaPrimeiroContatoMin !== null ? atual.medianaPrimeiroContatoMin - prev.medianaPrimeiroContatoMin : null}
+                unidade="min"
+                invert
+                sufixo={rot}
+              />
+            ),
+          },
+          {
+            label: 'Interações registradas no CRM',
+            value: atual.interacoes,
+            sufixo: atual.interacoesPorLead ? `${fmtNum(atual.interacoesPorLead, 1)} por lead` : undefined,
+            icon: <MessageCircle />,
+            spark: serie.map((x) => x.interacoes),
+            delta: <Delta v={prev.interacoes ? ((atual.interacoes - prev.interacoes) / prev.interacoes) * 100 : null} unidade="%" sufixo={rot} />,
+          },
         ].map((k) => (
-          <div className="card" key={k.label} style={{ gap: 12, padding: '20px 20px 18px' }}>
-            <div className="between" style={{ alignItems: 'flex-start', flexWrap: 'nowrap' }}>
-              <span className="muted" style={{ fontSize: 13, lineHeight: 1.35 }}>{k.label}</span>
-              <span className="kpi-icon"><Icon name={k.icon} size={16} /></span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-              <span className="big" style={{ fontSize: 38 }}>{k.valor}</span>
-              <span className="muted" style={{ fontSize: 13 }}>{k.unid}</span>
-            </div>
-            <Sparkline values={k.spark} />
-            <span style={{ fontSize: 12 }}>{k.delta}</span>
-          </div>
+          <motion.div key={k.label} variants={itemVariants}>
+            <StatCard {...k} className="h-full" />
+          </motion.div>
         ))}
-      </section>
+      </Stagger>
 
-      <section className="grid grid-auto-260" aria-label="Alertas da carteira">
-        <Link to="/fila" className="card card--pink" style={{ minHeight: 236 }}>
-          <div className="between">
-            <span className="eyebrow">Leads parados</span>
-            <span style={{ width: 30, height: 30, borderRadius: '50%', background: '#0c0b0e', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Icon name="seta" size={14} stroke={2.4} />
-            </span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span className="big" style={{ fontSize: 60 }}>{cart.parados}</span>
-            <span style={{ fontSize: 14 }}>mais de {p.paradoHoras}h sem interação</span>
-          </div>
-          <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'flex-end', gap: 10, minHeight: 80 }}>
-            {parados.length === 0 && <span style={{ fontSize: 14 }}>Nenhum lead parado agora.</span>}
-            {parados.slice(0, 6).map((x) => (
-              <div key={x.id} title={`${nome(x.id)}: ${x.n}`} style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                <span className="num" style={{ fontSize: 13, fontWeight: 600 }}>{x.n}</span>
-                <div style={{ width: '100%', height: (x.n / maxParados) * 48 + 6, borderRadius: '8px 8px 4px 4px', background: '#0c0b0e' }} />
-                <span style={{ fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>{iniciais(x.id)}</span>
+      <Reveal className="grid gap-4 lg:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <CardTitle>Meta de {monthName(agora)}</CardTitle>
+            <CardDescription>Contratos cadastrados (assinados e pagos)</CardDescription>
+            <CardAction>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/metas">Detalhes</Link>
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="flex flex-col items-center gap-2">
+            <div className="relative w-full">
+              <Gauge pct={mes.projecaoPct ?? 0} label={`Projeção de ${fmtPct(mes.projecaoPct)} da meta`} />
+              <div className="absolute inset-x-0 bottom-1 flex flex-col items-center">
+                <span className="text-4xl font-semibold tracking-tight">
+                  <AnimatedNumber value={mes.projecaoPct ?? 0} format={(v) => `${Math.round(v)}%`} />
+                </span>
+                <span className="text-xs text-muted-foreground">da meta no ritmo atual</span>
+              </div>
+            </div>
+            <div className="grid w-full grid-cols-3 divide-x rounded-lg border text-center">
+              <div className="flex flex-col gap-0.5 p-2.5">
+                <span className="text-xs text-muted-foreground">Cadastrados</span>
+                <span className="num text-lg font-semibold">
+                  {mes.ganhos}
+                  <span className="text-sm font-normal text-muted-foreground">/{mes.meta}</span>
+                </span>
+              </div>
+              <div className="flex flex-col gap-0.5 p-2.5">
+                <span className="text-xs text-muted-foreground">Projeção</span>
+                <span className="num text-lg font-semibold">{mes.projecao}</span>
+              </div>
+              <div className="flex flex-col gap-0.5 p-2.5">
+                <span className="text-xs text-muted-foreground">Dias úteis</span>
+                <span className="num text-lg font-semibold">
+                  {fmtNum(mes.diasPassados, 0)}
+                  <span className="text-sm font-normal text-muted-foreground">/{mes.diasTotal}</span>
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Carteira agora</CardTitle>
+            <CardDescription>{cart.abertos} leads abertos com os vendedores</CardDescription>
+            <CardAction>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/fila">Ver fila</Link>
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3.5">
+            {linhasCarteira.map((l, i) => (
+              <div key={l.rotulo} className="flex flex-col gap-1.5">
+                <div className="flex items-baseline justify-between gap-3 text-sm" title={l.ajuda}>
+                  <span className="flex items-center gap-2">
+                    <Dot color={l.cor} />
+                    {l.rotulo}
+                  </span>
+                  <AnimatedNumber value={l.n} className="font-semibold" />
+                </div>
+                <GrowBar pct={cart.abertos ? (l.n / cart.abertos) * 100 : 0} color={l.cor} delay={0.1 + i * 0.05} />
               </div>
             ))}
-          </div>
-        </Link>
-
-        <div className="card" style={{ minHeight: 236 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span className="dot dot--amber" />
-            <span className="eyebrow" style={{ color: 'var(--amber-text)' }}>Em atenção</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span className="big" style={{ fontSize: 60 }}>{cart.atencao}</span>
-            <span className="muted" style={{ fontSize: 14 }}>de {p.atencaoHoras}h a {p.paradoHoras}h sem interação</span>
-          </div>
-          <p style={{ margin: 'auto 0 0', fontSize: 14, lineHeight: 1.5 }}>
-            {cart.viramParadosHoje > 0 ? (
-              <>
-                <strong className="amber">{cart.viramParadosHoje} {cart.viramParadosHoje === 1 ? 'vira parado' : 'viram parados'} até as 18h</strong> se ninguém falar com {cart.viramParadosHoje === 1 ? 'ele' : 'eles'} hoje.
-              </>
-            ) : (
-              <span className="muted">Nenhum vira parado antes do fim do expediente.</span>
+            {cart.viramParadosHoje > 0 && (
+              <p className="text-xs text-warning-foreground">{cart.viramParadosHoje} em atenção viram parados antes das 18h se ninguém falar com eles.</p>
             )}
-          </p>
-          <div style={{ display: 'flex', gap: 4, height: 6 }} aria-hidden="true">
-            <span style={{ flex: `${Math.max(cart.viramParadosHoje, 0.01)} 1 0`, borderRadius: 3, background: 'var(--amber)' }} />
-            <span style={{ flex: `${Math.max(cart.atencao - cart.viramParadosHoje, 0.01)} 1 0`, borderRadius: 3, background: 'var(--amber-soft)' }} />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="card" style={{ minHeight: 236 }}>
-          <span className="eyebrow">Sem próximo passo</span>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span className="big" style={{ fontSize: 60 }}>{cart.semProximoPasso}</span>
-            <span className="muted" style={{ fontSize: 14 }}>leads abertos</span>
-          </div>
-          <p style={{ margin: 'auto 0 0', fontSize: 14, lineHeight: 1.5 }}>
-            Mais <strong className="accent">{cart.passoVencido} com passo vencido</strong>. {fmtPct(cart.comProximoPassoPct)} da carteira tem a próxima ação agendada.
-          </p>
-          <div className="track" aria-hidden="true">
-            <span className="fill-red" style={{ width: `${cart.comProximoPassoPct ?? 0}%` }} />
-          </div>
-        </div>
-
-        <Link to="/agenda" className="card" style={{ minHeight: 236 }}>
-          <span className="eyebrow">Demos de hoje</span>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 10 }}>
-            <span className="big" style={{ fontSize: 60 }}>{demos.total}</span>
-            <span className="muted" style={{ fontSize: 14 }}>agendadas</span>
-          </div>
-          <div style={{ marginTop: 'auto', display: 'flex', gap: 3, height: 10 }} aria-hidden="true">
-            {[
-              [demos.realizadas, 'var(--rm-500)'],
-              [demos.agoraN, 'var(--rm-300)'],
-              [demos.faltaram, 'var(--neutral-bar)'],
-              [demos.semDesfecho, 'var(--amber)'],
-              [demos.aSeguir, 'var(--track)'],
-            ].map(([n, c], i) => (Number(n) > 0 ? <span key={i} style={{ flex: `${n} 1 0`, borderRadius: 3, background: String(c) }} /> : null))}
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', fontSize: 12 }} className="muted">
-            <span><span style={{ color: 'var(--rm-500)' }}>■</span> {demos.realizadas} realizadas</span>
-            <span><span style={{ color: 'var(--rm-300)' }}>■</span> {demos.agoraN} agora</span>
-            <span><span style={{ color: 'var(--neutral-bar)' }}>■</span> {demos.faltaram} faltaram</span>
-            <span><span style={{ color: 'var(--amber)' }}>■</span> {demos.semDesfecho} sem desfecho</span>
-            <span>■ {demos.aSeguir} a seguir</span>
-          </div>
-        </Link>
-      </section>
-
-      <div className="card" style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: '14px 22px', padding: '16px 20px', background: 'linear-gradient(90deg, rgba(230,35,78,.10), transparent 55%), var(--panel)' }}>
-        <span className="kpi-icon" style={{ width: 42, height: 42, flexBasis: 42, borderRadius: 14 }}>
-          <Icon name="whatsapp" size={20} />
-        </span>
-        <p style={{ margin: 0, flex: '1 1 380px', fontSize: 15, lineHeight: 1.55 }} className="muted">
-          <strong style={{ color: 'var(--text)', fontWeight: 600 }}>{fmtPct(r30.usoWhatsappCrmPct)} das mensagens saíram pelo WhatsApp do CRM nos últimos 30 dias.</strong> Cada envio por ali
-          entra no painel sem registro manual.{baixoUso.length > 0 && ` ${baixoUso.join(', ')} ${baixoUso.length === 1 ? 'está' : 'estão'} abaixo de 10%.`}
-        </p>
-        <Link to="/performance" className="btn btn--ghost btn--sm">
-          Ver uso por vendedor
-        </Link>
-      </div>
-
-      <section className="row">
-        <div className="card" style={{ flex: '2 1 540px' }}>
-          <CardHead
-            title="Leads recebidos por dia"
-            sub="Primeiro contato dentro e fora de 1 hora útil · últimos 15 dias úteis"
-            right={
-              <div style={{ display: 'flex', gap: 14, fontSize: 12 }} className="muted">
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--rm-500)' }} />No prazo</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--neutral-bar)' }} />Fora do prazo</span>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--amber)' }} />Correndo</span>
-              </div>
-            }
-          />
-          <StackedColumns
-            ariaLabel={`Leads recebidos por dia nos últimos 15 dias úteis: ${noPrazo15} no prazo e ${fora15} fora do prazo`}
-            cols={serie15.map((d, i) => ({
-              rotulo: i === serie15.length - 1 ? 'Hoje' : fmtDate(d.dia),
-              dica: `${fmtDate(d.dia)}: ${d.recebidos} leads, ${d.noPrazo} no prazo, ${d.fora} fora`,
-              destaque: i === serie15.length - 1,
-              partes: [
-                { valor: d.noPrazo, cor: 'linear-gradient(180deg,#FF6B8A,#C81640)', brilho: '0 0 22px rgba(230,35,78,.75)' },
-                { valor: d.correndo, cor: 'var(--amber)' },
-                { valor: d.fora, cor: 'var(--neutral-bar)' },
-              ],
-            }))}
-          />
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 20px', paddingTop: 14, borderTop: '1px solid var(--line)', fontSize: 13 }} className="muted">
-            <span><strong style={{ color: 'var(--text)' }}>{total15} leads</strong> no período</span>
-            <span><strong className="accent">{fmtPct(noPrazo15 + fora15 ? (noPrazo15 / (noPrazo15 + fora15)) * 100 : null)} no prazo</strong> · meta 85%</span>
-          </div>
-        </div>
-
-        <div className="card card--rank" style={{ flex: '1 1 320px', padding: '24px 24px 22px' }}>
-          <div className="between">
-            <span className="eyebrow">Ranking de {monthName(agora)}</span>
-            <Link to="/performance" aria-label="Abrir performance por vendedor" style={{ width: 30, height: 30, borderRadius: '50%', border: '1px solid rgba(255,255,255,.5)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-              <Icon name="seta" size={14} stroke={2.2} />
-            </Link>
-          </div>
-          <div role="table" aria-label="Ranking do mês">
-            <div role="row" style={{ display: 'grid', gridTemplateColumns: '40px 1fr 70px 70px', paddingBottom: 10, borderBottom: '1px solid rgba(255,255,255,.55)', fontSize: 12, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase' }}>
-              <span role="columnheader" />
-              <span role="columnheader">Vendedor</span>
-              <span role="columnheader" style={{ textAlign: 'right' }}>Ganhos</span>
-              <span role="columnheader" style={{ textAlign: 'right' }}>SLA 1h</span>
+        <Card>
+          <CardHeader>
+            <CardTitle>Demos de hoje</CardTitle>
+            <CardDescription>{demos.total} demonstrações agendadas</CardDescription>
+            <CardAction>
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/agenda">Agenda</Link>
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div className="flex h-2.5 gap-0.5 overflow-hidden rounded-full">
+              {(
+                [
+                  [demos.realizadas, 'var(--primary)'],
+                  [demos.emAndamento, 'var(--chart-4)'],
+                  [demos.semDesfecho, 'var(--warning)'],
+                  [demos.faltaram, 'var(--chart-2)'],
+                  [demos.aSeguir, 'var(--muted)'],
+                ] as [number, string][]
+              ).map(([n, c], i) =>
+                n > 0 ? (
+                  <motion.span
+                    key={i}
+                    className="h-full"
+                    style={{ background: c }}
+                    initial={{ flexGrow: 0 }}
+                    animate={{ flexGrow: n }}
+                    transition={{ duration: 0.8, ease: EASE, delay: 0.15 + i * 0.05 }}
+                  />
+                ) : null,
+              )}
             </div>
-            {ranking.map((r, i) => (
-              <div role="row" key={r.id} style={{ display: 'grid', gridTemplateColumns: '40px 1fr 70px 70px', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid rgba(255,255,255,.3)' }}>
-                <span role="cell" className="num" style={{ fontSize: 16, fontWeight: 700 }}>#{i + 1}</span>
-                <span role="cell" style={{ fontSize: 15, fontWeight: 500 }}>{nome(r.id)}</span>
-                <span role="cell" className="num" style={{ textAlign: 'right', fontSize: 15 }}>{r.ganhos}</span>
-                <span role="cell" className="num" style={{ textAlign: 'right', fontSize: 15 }}>{fmtPct(r.sla)}</span>
-              </div>
-            ))}
-          </div>
-          <div className="between" style={{ marginTop: 'auto', alignItems: 'flex-end' }}>
-            <span style={{ fontSize: 13, lineHeight: 1.4, color: 'rgba(255,255,255,.85)' }}>
-              Inside Sales
-              <br />
-              ganhos do mês e SLA de 30 dias
-            </span>
-            <span className="num" style={{ fontSize: 30, fontWeight: 600 }}>{monthName(agora).slice(0, 3).toUpperCase()}</span>
-          </div>
-        </div>
-      </section>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              {(
+                [
+                  ['Realizadas', demos.realizadas, 'var(--primary)'],
+                  ['Em andamento', demos.emAndamento, 'var(--chart-4)'],
+                  ['Sem desfecho', demos.semDesfecho, 'var(--warning)'],
+                  ['Faltaram', demos.faltaram, 'var(--chart-2)'],
+                  ['A seguir', demos.aSeguir, 'var(--muted-foreground)'],
+                ] as [string, number, string][]
+              ).map(([r, n, c]) => (
+                <div key={r} className="flex items-center justify-between gap-2">
+                  <dt className="flex items-center gap-2 text-muted-foreground">
+                    <Dot color={c} />
+                    {r}
+                  </dt>
+                  <dd className="num font-medium">{n}</dd>
+                </div>
+              ))}
+            </dl>
+          </CardContent>
+        </Card>
+      </Reveal>
 
-      <section className="card card--flush">
-        <div className="card-pad between">
-          <div className="stack">
-            <h2 className="h2">Fila de risco</h2>
-            <p className="sub">
-              {Math.min(5, itensFila.length)} de {itensFila.length} leads com alerta, do mais grave para o menos grave
+      <Reveal className="grid gap-4 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Leads recebidos por dia</CardTitle>
+            <CardDescription>Primeiro contato dentro e fora de 1 hora útil · últimos 15 dias úteis</CardDescription>
+            <CardAction className="hidden gap-3 text-xs text-muted-foreground sm:flex">
+              <span className="flex items-center gap-1.5">
+                <Dot color="var(--primary)" />
+                No prazo
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Dot color="var(--chart-2)" />
+                Fora
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Dot color="var(--warning)" />
+                Correndo
+              </span>
+            </CardAction>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <StackedColumns
+              ariaLabel={`Leads por dia: ${noPrazo15} no prazo e ${fora15} fora do prazo`}
+              cols={serie15.map((x, i) => ({
+                rotulo: i === serie15.length - 1 ? 'Hoje' : fmtDate(x.dia),
+                dica: `${fmtDate(x.dia)}: ${x.recebidos} leads, ${x.noPrazo} no prazo`,
+                destaque: i === serie15.length - 1,
+                partes: [
+                  { valor: x.noPrazo, cor: 'var(--primary)' },
+                  { valor: x.correndo, cor: 'var(--warning)' },
+                  { valor: x.fora, cor: 'var(--chart-2)' },
+                ],
+              }))}
+            />
+            <p className="text-sm text-muted-foreground">
+              <Strong>{total15} leads</Strong> no período · <Strong tone="primary">{fmtPct(noPrazo15 + fora15 ? (noPrazo15 / (noPrazo15 + fora15)) * 100 : null)} no prazo</Strong> · meta 85%
             </p>
-          </div>
-          <LinkArrow to="/fila">Ver fila completa</LinkArrow>
-        </div>
-        <div className="tscroll">
-          <div style={{ minWidth: 820 }}>
-            <div className="trow thead" style={{ gridTemplateColumns: '20px minmax(180px,2fr) minmax(150px,1.3fr) minmax(130px,1fr) 110px minmax(180px,1.6fr)' }}>
-              <span />
-              <span>Lead</span>
-              <span>Vendedor</span>
-              <span>Etapa</span>
-              <span>Sem interação</span>
-              <span>Situação</span>
-            </div>
-            {itensFila.slice(0, 5).map(({ view: v, alertas: al }) => (
-              <button
-                type="button"
-                key={v.lead.id}
-                className="trow"
-                onClick={() => abrirLead(v.lead.id)}
-                style={{ gridTemplateColumns: '20px minmax(180px,2fr) minmax(150px,1.3fr) minmax(130px,1fr) 110px minmax(180px,1.6fr)' }}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Ranking de {monthName(agora)}</CardTitle>
+            <CardDescription>Cadastrados no mês e SLA de 30 dias</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col">
+            {ranking.slice(0, 6).map((r, i) => (
+              <motion.div
+                key={r.id}
+                layout
+                className="flex items-center gap-3 border-b py-2.5 last:border-0"
+                initial={{ opacity: 0, x: -6 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.35, ease: EASE, delay: 0.2 + i * 0.05 }}
               >
-                <span className={`dot ${al[0].cor === 'vermelho' ? 'dot--red' : 'dot--amber'}`} />
-                <span className="stack gap-4" style={{ minWidth: 0 }}>
-                  <span style={{ fontWeight: 500 }}>{v.lead.revenda}</span>
-                  <span className="faint" style={{ fontSize: 12 }}>{v.lead.cidade}/{v.lead.uf}</span>
-                </span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Avatar text={iniciais(v.vendedorId)} />
-                  {nome(v.vendedorId)}
-                </span>
-                <span><span className="etapa">{ETAPA_LABEL[v.etapa]}</span></span>
-                <span className="mono" style={{ fontSize: 15, color: al[0].cor === 'vermelho' ? 'var(--accent-text)' : 'var(--amber-text)' }}>{fmtHours(v.horasSemInteracao)}</span>
-                <span className="muted" style={{ fontSize: 13 }}>{al.map((a) => ALERTA_INFO[a.tipo].rotulo).join(' · ')}</span>
-              </button>
+                <span className="num w-5 text-sm text-muted-foreground">{i + 1}</span>
+                <NameAvatar nome={nome(r.id)} size={28} />
+                <span className="flex-1 text-sm font-medium">{nome(r.id)}</span>
+                <span className="num w-8 text-right text-sm font-semibold">{r.ganhos}</span>
+                <span className="num w-10 text-right text-xs text-muted-foreground">{fmtPct(r.sla)}</span>
+              </motion.div>
             ))}
+          </CardContent>
+        </Card>
+      </Reveal>
+
+      <Reveal>
+        <Card className="gap-0 pb-0">
+          <CardHeader className="pb-4">
+            <CardTitle>Fila de risco</CardTitle>
+            <CardDescription>
+              {Math.min(6, itensFila.length)} de {itensFila.length} leads que pedem ação, do mais grave para o menos grave
+            </CardDescription>
+            <CardAction>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/fila">
+                  Ver todos <ArrowRight />
+                </Link>
+              </Button>
+            </CardAction>
+          </CardHeader>
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead className="pl-4">Lead</TableHead>
+                <TableHead>Responsável</TableHead>
+                <TableHead>Etapa</TableHead>
+                <TableHead className="text-right">Sem interação</TableHead>
+                <TableHead className="pr-4">Alerta</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {itensFila.slice(0, 6).map(({ view: v, alertas: al }) => {
+                const e = etiquetaDoAlerta(al[0], v, agora);
+                return (
+                  <TableRow key={v.lead.id} className="cursor-pointer" onClick={() => abrirLead(v.lead.id)}>
+                    <TableCell className="pl-4">
+                      <div className="flex flex-col">
+                        <span className="font-medium">
+                          {v.lead.contato} - {v.lead.revenda}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {v.lead.cidade}/{v.lead.uf}
+                        </span>
+                      </div>
+                    </TableCell>
+                    <TableCell>{nome(v.vendedorId)}</TableCell>
+                    <TableCell>
+                      <span className="flex items-center gap-2">
+                        <Dot color={ETAPA_COR[v.etapa]} />
+                        {ETAPA_LABEL[v.etapa]}
+                      </span>
+                    </TableCell>
+                    <TableCell className="num text-right">{fmtHours(v.horasSemInteracao)}</TableCell>
+                    <TableCell className="pr-4">{e && <Etiqueta cor={e.cor}>{e.texto}</Etiqueta>}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </Card>
+      </Reveal>
+
+      {baixoUso.length > 0 && (
+        <Reveal>
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-4 py-3 text-sm">
+            <MessageCircle className="size-4 text-muted-foreground" />
+            <p className="flex-1 text-muted-foreground">
+              <Strong>{fmtPct(r30.usoWhatsappCrmPct)} das mensagens</Strong> saíram pelo WhatsApp do CRM nos últimos 30 dias. Cada envio por ali entra no painel sem registro
+              manual. {baixoUso.map(nome).join(', ')} {baixoUso.length === 1 ? 'está' : 'estão'} abaixo de 10%.
+            </p>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/performance">Ver por vendedor</Link>
+            </Button>
           </div>
-        </div>
-      </section>
-    </>
+        </Reveal>
+      )}
+    </Page>
   );
 }
