@@ -1,4 +1,4 @@
-import { ArrowUpRight, Menu, Settings } from 'lucide-react';
+import { ArrowUpRight, Menu, Moon, Settings, Sun } from 'lucide-react';
 import { LayoutGroup, motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom';
@@ -26,11 +26,35 @@ function useFilaAgora() {
   return useMemo(() => fila(views, agora, config.params).filter(urgente).length, [views, agora, config.params]);
 }
 
+function LogoImg() {
+  const { config } = usePainel();
+  return <img src={config.tema === 'dark' ? './brand/revenda-mais-branco.png' : './brand/revenda-mais.png'} alt="Revenda Mais" className="h-[22px] w-auto" />;
+}
+
 function Logo() {
   return (
     <Link to="/" aria-label="Revenda Mais · início" className="shrink-0">
-      <img src="./brand/revenda-mais.png" alt="Revenda Mais" className="h-[22px] w-auto" />
+      <LogoImg />
     </Link>
+  );
+}
+
+/** Modo escuro opcional: fica salvo no navegador de quem escolheu. */
+function BotaoTema() {
+  const { config, setConfig } = usePainel();
+  const escuro = config.tema === 'dark';
+  return (
+    <button
+      type="button"
+      onClick={() => setConfig((c) => ({ ...c, tema: escuro ? 'light' : 'dark' }))}
+      aria-label={escuro ? 'Usar modo claro' : 'Usar modo escuro'}
+      title={escuro ? 'Modo claro' : 'Modo escuro'}
+      className="flex size-9 items-center justify-center rounded-full border border-ink/15 bg-card transition-colors hover:border-ink/40"
+    >
+      <motion.span key={escuro ? 'sol' : 'lua'} initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} transition={{ duration: 0.35 }} className="flex">
+        {escuro ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      </motion.span>
+    </button>
   );
 }
 
@@ -48,7 +72,7 @@ function NavPilulas({ vertical = false, onNavigate }: { vertical?: boolean; onNa
               onClick={onNavigate}
               className={cn(
                 'relative inline-flex h-9 items-center rounded-full border px-4 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring',
-                ativo ? 'border-ink text-white' : 'border-ink/15 bg-card text-foreground hover:border-ink/40',
+                ativo ? 'border-ink text-ink-foreground' : 'border-ink/15 bg-card text-foreground hover:border-ink/40',
               )}
             >
               {ativo && <motion.span layoutId="nav-ativo" transition={{ type: 'spring', stiffness: 420, damping: 36 }} className="absolute inset-[-1px] rounded-full bg-ink" />}
@@ -89,14 +113,15 @@ function Topo() {
               </TooltipContent>
             </Tooltip>
           )}
+          <BotaoTema />
           <Link to="/configuracoes" aria-label="Configurações" title="Configurações" className="flex size-9 items-center justify-center rounded-full border border-ink/15 bg-card transition-colors hover:border-ink/40">
             <Settings className="size-4" />
           </Link>
-          <Link to="/fila" className="group/cta inline-flex h-9 items-center gap-2.5 rounded-full bg-ink pr-1 pl-4 text-sm font-medium text-white transition-colors hover:bg-ink/85">
+          <Link to="/fila" className="group/cta inline-flex h-9 items-center gap-2.5 rounded-full bg-ink pr-1 pl-4 text-sm font-medium text-ink-foreground transition-colors hover:bg-ink/85">
             <span className="hidden sm:inline">Fila de risco</span>
             <span className="sm:hidden">Fila</span>
-            <span className="num rounded-full bg-primary px-2 py-0.5 text-xs">{n}</span>
-            <span className="flex size-7 items-center justify-center rounded-full bg-white text-ink">
+            <span className="num rounded-full bg-primary px-2 py-0.5 text-xs text-white">{n}</span>
+            <span className="flex size-7 items-center justify-center rounded-full bg-ink-foreground text-ink">
               <ArrowUpRight className="size-3.5 transition-transform duration-300 group-hover/cta:rotate-45" />
             </span>
           </Link>
@@ -107,7 +132,7 @@ function Topo() {
           <SheetHeader className="p-0">
             <SheetTitle asChild>
               <div>
-                <img src="./brand/revenda-mais.png" alt="Revenda Mais" className="h-[22px] w-auto" />
+                <LogoImg />
               </div>
             </SheetTitle>
             <SheetDescription>Supervisão do Inside Sales</SheetDescription>

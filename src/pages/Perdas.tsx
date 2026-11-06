@@ -87,7 +87,7 @@ export function Perdas({ dias, topo }: { dias: number; topo: ReactNode }) {
 
         <Stagger className="flex flex-col gap-4">
           <Bloco tom="ink" titulo="Para onde o lead vai">
-            <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-white/15">
+            <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-ink-foreground/15">
               {(
                 [
                   ['resgate_sdr', resgate],

@@ -1,7 +1,8 @@
 import { motion } from 'motion/react';
 import { type ReactNode, useMemo } from 'react';
 import { Bloco, Capsule, Contexto, fmtNum, fmtPct, Hl, Intro, Numero, Pill } from '@/components/kit';
-import { EASE, Page, Stagger } from '@/components/motion';
+import { AnimatedNumber, EASE, Page, Stagger } from '@/components/motion';
+import { Wave } from '@/components/wave';
 import { fechamento, funil } from '@/data/metrics/indicadores';
 import { DAY, fmtDate } from '@/data/time';
 import { FUNIL_LABEL } from '@/data/types';
@@ -48,40 +49,49 @@ export function Funil({ dias, topo }: { dias: number; topo: ReactNode }) {
         }
       />
 
-      <Bloco titulo="Etapas do vendedor no CRM">
-        <div className="flex flex-col">
+      <Bloco titulo="Funil do vendedor no CRM">
+        <p className="-mt-2 text-sm text-muted-foreground">A largura de cada faixa é proporcional ao número de leads que chegou à etapa.</p>
+        <div className="flex flex-col gap-1.5">
           {etapas.map((e, i) => {
-            const w = (e.n / base) * 100;
-            const ant = anteriores[i];
-            const ehPior = i === idxPior;
-            const dif = e.conversao !== null && ant.conversao !== null ? e.conversao - ant.conversao : null;
+            const topoPct = (e.n / base) * 100;
+            const prox = etapas[i + 1];
+            const baixoPct = prox ? (prox.n / base) * 100 : topoPct * 0.72;
+            const it = (100 - topoPct) / 2;
+            const ib = (100 - baixoPct) / 2;
+            const destaque = i === idxPior - 1;
+            const ant = prox ? anteriores[i + 1] : null;
+            const dif = prox && ant && prox.conversao !== null && ant.conversao !== null ? prox.conversao - ant.conversao : null;
             return (
-              <div key={e.etapa} className="flex flex-col">
-                {i > 0 && (
-                  <div className={cn('flex flex-wrap items-center gap-x-4 gap-y-1 py-3 pl-[212px] text-xs max-md:pl-0', ehPior ? 'text-primary' : 'text-muted-foreground')}>
-                    <span className="font-medium">{fmtPct(e.conversao)} avançam</span>
-                    <span>{etapas[i - 1].n - e.n} saem</span>
-                    <span>{fmtNum(e.diasMedios, 1)} dias em média</span>
-                    {dif !== null && (
-                      <span>
-                        {dif >= 0 ? '+' : '−'}
-                        {fmtNum(Math.abs(dif), 1)} p.p. vs. {dias} dias antes
-                      </span>
-                    )}
-                  </div>
-                )}
-                <div className="grid grid-cols-[200px_1fr] items-center gap-3 max-md:grid-cols-1">
-                  <span className="text-sm font-medium">{FUNIL_LABEL[e.etapa]}</span>
-                  <div className="relative h-12 overflow-hidden rounded-full bg-track">
-                    <motion.div
-                      className={cn('absolute inset-y-0 left-0 rounded-full', ehPior ? 'bg-primary' : 'bg-ink')}
-                      initial={{ width: 0 }}
-                      animate={{ width: `${Math.max(w, 6)}%` }}
-                      transition={{ duration: 0.9, ease: EASE, delay: 0.15 + i * 0.12 }}
-                    />
-                    <span className="num absolute inset-y-0 left-4 flex items-center text-base font-medium text-white">{e.n}</span>
-                    <span className="num absolute inset-y-0 right-4 flex items-center text-xs text-muted-foreground">{Math.round(w)}% do início</span>
-                  </div>
+              <div key={e.etapa} className="grid grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] items-center gap-x-4 md:gap-x-10">
+                <motion.div
+                  className={cn('relative isolate flex min-h-24 items-center justify-center self-stretch overflow-hidden', destaque ? 'bg-primary text-white' : 'bg-ink text-ink-foreground')}
+                  initial={{ clipPath: 'polygon(50% 0%, 50% 0%, 50% 100%, 50% 100%)' }}
+                  animate={{ clipPath: `polygon(${it}% 0%, ${100 - it}% 0%, ${100 - ib}% 100%, ${ib}% 100%)` }}
+                  transition={{ duration: 0.9, ease: EASE, delay: 0.15 + i * 0.14 }}
+                >
+                  {destaque && <Wave className="absolute inset-0 -z-10 size-full text-white" opacidade={0.35} />}
+                  <span className="display num text-3xl max-md:hidden">
+                    <AnimatedNumber value={e.n} />
+                  </span>
+                </motion.div>
+                <div className="flex flex-col gap-1">
+                  <span className="eyebrow">{FUNIL_LABEL[e.etapa]}</span>
+                  <span className="text-sm text-muted-foreground">
+                    <span className="num font-medium text-foreground md:hidden">{e.n} · </span>
+                    {i === 0 ? 'leads que chegaram ao vendedor' : `${Math.round(topoPct)}% dos que chegaram`}
+                  </span>
+                  {prox && (
+                    <span className={cn('text-xs leading-relaxed', destaque ? 'font-medium text-primary' : 'text-muted-foreground')}>
+                      ↓ {fmtPct(prox.conversao)} avançam · {e.n - prox.n} saem · {fmtNum(prox.diasMedios, 1)} dias
+                      {dif !== null && (
+                        <>
+                          {' '}
+                          · {dif >= 0 ? '+' : '−'}
+                          {fmtNum(Math.abs(dif), 1)} p.p. vs. {dias} dias antes
+                        </>
+                      )}
+                    </span>
+                  )}
                 </div>
               </div>
             );

@@ -265,7 +265,7 @@ function Alternar({ ativo, onClick, children }: { ativo: boolean; onClick: () =>
       onClick={onClick}
       className={cn(
         'inline-flex h-9 items-center gap-2 rounded-full border px-4 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring',
-        ativo ? 'border-ink bg-ink text-white' : 'border-ink/15 bg-card hover:border-ink/40',
+        ativo ? 'border-ink bg-ink text-ink-foreground' : 'border-ink/15 bg-card hover:border-ink/40',
       )}
     >
       <span className={cn('size-2 rounded-full', ativo ? 'bg-primary' : 'bg-ink/20')} />

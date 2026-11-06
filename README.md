@@ -29,7 +29,7 @@ Cada tela responde a uma pergunta. O título já traz a resposta, com o número 
 | Kanban | O quadro do CRM, com as mesmas etapas e cartões, mostrando os atrasos de cada lead |
 | Agenda | As demos de hoje estão acontecendo e têm desfecho? |
 | Time | Quem segue o processo e quem converte? Ranking por indicador, detalhe do vendedor e processo × resultado |
-| Análises | Funil (onde os leads travam), Origem do lead (é ruim ou foi mal atendido?) e Perdas (por que e para onde vão) |
+| Análises | Funil em formato de funil (onde os leads travam), Origem do lead (é ruim ou foi mal atendido?) e Perdas (por que e para onde vão) |
 | Metas | Vamos bater o mês e o trimestre? |
 | Fila de risco (botão preto no topo) | Qual lead está sendo esquecido? O número no botão é o de leads que pedem ação agora |
 | Configurações (engrenagem) | Prazos, horário comercial, metas, alertas e alvos dos OKRs |
@@ -111,5 +111,5 @@ Os dois históricos (atribuição e etapas) não existem hoje no CRM e são a **
 
 - **Visual:** fundo cinza-claro, cartões brancos com borda fina, um cartão **rosa** para o que pede ação e um **preto** para a meta. Rosa sempre quer dizer problema ou ação; preto, meta ou destaque neutro; cinza, o resto. Títulos grandes em Inter Tight, menu e filtros em pílulas, e a textura de onda só nos cartões de destaque.
 - **Peças:** `src/components/kit.tsx` (título da tela, cartão, número, medidor com meta, pílulas, botões de seta) e `src/components/wave.tsx` (a onda). Formulários e a ficha do lead usam [shadcn/ui](https://ui.shadcn.com) (Radix + Tailwind CSS 4) com React 19 e ícones Lucide.
-- **Cores:** variáveis em `src/index.css`, com o rosa Revenda Mais como cor primária. Logo em `public/brand/`.
+- **Cores:** variáveis em `src/index.css`, com o rosa Revenda Mais como cor primária. O modo claro é o padrão; o escuro é opcional, no botão de lua do topo, e fica salvo no navegador de quem escolheu (no escuro, o cartão preto vira o cartão claro). Logos em `public/brand/` (versão branca para o modo escuro).
 - **Movimento:** [Motion](https://motion.dev). As telas entram em cascata, os números contam até o valor, as barras crescem, o destaque das pílulas desliza, a onda deriva devagar e, no Kanban, o cartão desliza para a coluna nova quando o lead muda de etapa. Quem ativa "reduzir movimento" no sistema vê tudo parado.

@@ -13,7 +13,7 @@ import { usePainel } from '@/state/painel';
 type Situacao = 'realizada' | 'faltou' | 'sem_desfecho' | 'agora' | 'agendada';
 
 const SIT: Record<Situacao, { rotulo: string; cls: string }> = {
-  realizada: { rotulo: 'Realizada', cls: 'border-ink bg-ink text-white' },
+  realizada: { rotulo: 'Realizada', cls: 'border-ink bg-ink text-ink-foreground' },
   agora: { rotulo: 'Em andamento', cls: 'border-primary bg-primary text-white' },
   faltou: { rotulo: 'Não compareceu', cls: 'border-primary/40 text-primary' },
   sem_desfecho: { rotulo: 'Sem desfecho', cls: 'border-warning bg-warning/15 text-warning-foreground' },

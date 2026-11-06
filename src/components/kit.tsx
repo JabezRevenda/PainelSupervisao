@@ -85,9 +85,9 @@ type Tom = 'white' | 'pink' | 'ink';
 export function ArrowLink({ to, onClick, label, tom = 'white', className }: { to?: string; onClick?: () => void; label: string; tom?: Tom; className?: string }) {
   const cls = cn(
     'group/seta inline-flex size-8 shrink-0 items-center justify-center rounded-full transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring',
-    tom === 'white' && 'bg-ink text-white hover:bg-primary',
+    tom === 'white' && 'bg-ink text-ink-foreground hover:bg-primary hover:text-white',
     tom === 'pink' && 'bg-white text-primary',
-    tom === 'ink' && 'bg-white text-ink hover:bg-primary hover:text-white',
+    tom === 'ink' && 'bg-ink-foreground text-ink hover:bg-primary hover:text-white',
     className,
   );
   const icone = <ArrowUpRight className="size-4 transition-transform duration-300 group-hover/seta:rotate-45" />;
@@ -109,12 +109,12 @@ export function Cta({ to, onClick, children, tom = 'pink', className }: { to?: s
   const cls = cn(
     'group/cta inline-flex h-10 items-center gap-3 rounded-full pr-1 pl-4 text-sm font-medium whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring',
     tom === 'pink' && 'bg-primary text-white hover:bg-primary/90',
-    tom === 'ink' && 'bg-ink text-white hover:bg-ink/85',
-    tom === 'outline' && 'border border-ink/80 text-foreground hover:bg-ink hover:text-white',
+    tom === 'ink' && 'bg-ink text-ink-foreground hover:bg-ink/85',
+    tom === 'outline' && 'border border-ink/80 text-foreground hover:bg-ink hover:text-ink-foreground',
     className,
   );
   const circ = (
-    <span className={cn('flex size-8 items-center justify-center rounded-full', tom === 'outline' ? 'bg-ink text-white' : 'bg-white', tom === 'pink' && 'text-primary', tom === 'ink' && 'text-ink')}>
+    <span className={cn('flex size-8 items-center justify-center rounded-full', tom === 'outline' ? 'bg-ink text-ink-foreground' : tom === 'ink' ? 'bg-ink-foreground' : 'bg-white', tom === 'pink' && 'text-primary', tom === 'ink' && 'text-ink')}>
       <ArrowUpRight className="size-4 transition-transform duration-300 group-hover/cta:rotate-45" />
     </span>
   );
@@ -185,7 +185,7 @@ export function Bloco({
         'relative isolate flex flex-col gap-5 overflow-hidden rounded-[22px] p-5 sm:p-6',
         tom === 'white' && 'border bg-card',
         tom === 'pink' && 'bg-primary text-white',
-        tom === 'ink' && 'bg-ink text-white',
+        tom === 'ink' && 'bg-ink text-ink-foreground',
         className,
       )}
     >
@@ -220,7 +220,7 @@ export function Numero({ value, format, unidade, className }: { value: number | 
 export function Medidor({ pct, marca, tom = 'white', delay = 0.15, className }: { pct: number | null; marca?: number | null; tom?: Tom; delay?: number; className?: string }) {
   const w = Math.max(0, Math.min(100, pct ?? 0));
   return (
-    <div className={cn('relative h-2 w-full rounded-full', tom === 'white' ? 'bg-track' : 'bg-white/20', className)}>
+    <div className={cn('relative h-2 w-full rounded-full', tom === 'white' ? 'bg-track' : tom === 'pink' ? 'bg-white/25' : 'bg-ink-foreground/20', className)}>
       <motion.div
         className={cn('absolute inset-y-0 left-0 rounded-full', tom === 'white' ? 'bg-ink' : tom === 'pink' ? 'bg-white' : 'bg-primary')}
         initial={{ width: 0 }}
@@ -230,7 +230,7 @@ export function Medidor({ pct, marca, tom = 'white', delay = 0.15, className }: 
       {marca !== null && marca !== undefined && (
         <span
           aria-hidden="true"
-          className={cn('absolute -inset-y-1 w-0.5 rounded-full', tom === 'white' ? 'bg-primary' : 'bg-white')}
+          className={cn('absolute -inset-y-1 w-0.5 rounded-full', tom === 'white' ? 'bg-primary' : tom === 'pink' ? 'bg-white' : 'bg-ink-foreground')}
           style={{ left: `calc(${Math.max(0, Math.min(100, marca))}% - 1px)` }}
         />
       )}
@@ -266,7 +266,7 @@ export function Pilulas<T extends string>({
             onClick={() => onChange(v)}
             className={cn(
               'relative inline-flex h-9 items-center gap-1.5 rounded-full border px-4 text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring',
-              ativo ? 'border-ink text-white' : 'border-ink/15 bg-card hover:border-ink/40',
+              ativo ? 'border-ink text-ink-foreground' : 'border-ink/15 bg-card hover:border-ink/40',
             )}
           >
             {ativo && <motion.span layoutId={`pil-${id}`} transition={{ type: 'spring', stiffness: 420, damping: 36 }} className="absolute inset-[-1px] rounded-full bg-ink" />}

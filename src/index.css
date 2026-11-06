@@ -9,6 +9,7 @@
  * Visual do painel: fundo cinza-claro, cartões brancos com borda fina,
  * um cartão rosa para o que pede ação e um preto para a meta.
  * Rosa = problema ou ação. Preto = meta e destaque neutro. Cinza = o resto.
+ * No modo escuro (opcional) o "preto" se inverte e vira o cartão claro.
  */
 @theme inline {
   --font-heading: var(--font-sans);
@@ -33,6 +34,7 @@
   --color-foreground: var(--foreground);
   --color-background: var(--background);
   --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
   --color-track: var(--track);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
@@ -67,6 +69,7 @@
   --input: oklch(0.86 0 0);
   --ring: oklch(0.61 0.225 15 / 45%);
   --ink: oklch(0.155 0 0);
+  --ink-foreground: oklch(1 0 0);
   --track: oklch(0.93 0 0);
   --warning: oklch(0.77 0.155 70);
   --warning-foreground: oklch(0.53 0.13 60);
@@ -78,6 +81,39 @@
   --chart-4: oklch(0.77 0.14 8);
   --chart-5: oklch(0.17 0 0);
   --radius: 0.875rem;
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.96 0 0);
+  --card: oklch(0.195 0 0);
+  --card-foreground: oklch(0.96 0 0);
+  --popover: oklch(0.21 0 0);
+  --popover-foreground: oklch(0.96 0 0);
+  --primary: oklch(0.66 0.21 13);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.25 0 0);
+  --secondary-foreground: oklch(0.96 0 0);
+  --muted: oklch(0.25 0 0);
+  --muted-foreground: oklch(0.7 0.004 285);
+  --accent: oklch(0.25 0 0);
+  --accent-foreground: oklch(0.96 0 0);
+  --destructive: oklch(0.66 0.21 13);
+  --border: oklch(1 0 0 / 11%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.66 0.21 13 / 50%);
+  --ink: oklch(0.96 0 0);
+  --ink-foreground: oklch(0.155 0 0);
+  --track: oklch(1 0 0 / 10%);
+  --warning: oklch(0.8 0.15 75);
+  --warning-foreground: oklch(0.83 0.13 78);
+  --success: oklch(0.72 0.14 160);
+  --brand-soft: oklch(0.3 0.07 12);
+  --chart-1: oklch(0.66 0.21 13);
+  --chart-2: oklch(0.45 0 0);
+  --chart-3: oklch(0.8 0.15 75);
+  --chart-4: oklch(0.77 0.14 8);
+  --chart-5: oklch(0.96 0 0);
 }
 
 @layer base {

@@ -278,7 +278,7 @@ function Dispersao({ linhas, selId, onSel, mediaX, mediaY }: { linhas: LinhaVend
               initial={{ opacity: 0, scale: 0.4 }}
               animate={{ opacity: 1, scale: ativo ? 1.15 : 1 }}
               transition={SPRING}
-              className={cn('absolute flex size-8 items-center justify-center rounded-full text-[11px] font-semibold ring-2 ring-card', ativo ? 'z-10 bg-ink text-white' : 'z-0 text-white')}
+              className={cn('absolute flex size-8 items-center justify-center rounded-full text-[11px] font-semibold ring-2 ring-card', ativo ? 'z-10 bg-ink text-ink-foreground' : 'z-0 text-white')}
               style={{
                 left: `calc(${px(l.sla ?? 0)}% - 16px + ${dx}px)`,
                 bottom: `calc(${py(l.conversao ?? 0)}% - 16px)`,
