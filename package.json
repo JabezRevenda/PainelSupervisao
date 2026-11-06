@@ -13,7 +13,7 @@
     "simulacao": "vite-node scripts/resumo-simulacao.ts"
   },
   "dependencies": {
-    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/inter-tight": "^5.3.0",
     "@tailwindcss/vite": "^4.3.4",
     "class-variance-authority": "^0.7.1",
     "cn": "^0.5.2",

@@ -2,7 +2,7 @@
  * Movimento do painel: curto, com desaceleração natural, sem exageros.
  * Tudo respeita "reduzir movimento" do sistema (MotionConfig em main.tsx).
  */
-import { animate, LayoutGroup, motion, useReducedMotion } from 'motion/react';
+import { animate, motion, useReducedMotion } from 'motion/react';
 import { type ReactNode, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -82,74 +82,6 @@ export function AnimatedNumber({
     <span ref={ref} className={cn('num', className)}>
       {format(reduzir ? value : 0)}
     </span>
-  );
-}
-
-/** Barra horizontal que cresce até `pct`. */
-export function GrowBar({
-  pct,
-  className,
-  barClassName,
-  color,
-  delay = 0,
-}: {
-  pct: number | null;
-  className?: string;
-  barClassName?: string;
-  color?: string;
-  delay?: number;
-}) {
-  const w = Math.max(0, Math.min(100, pct ?? 0));
-  return (
-    <div className={cn('h-1.5 w-full overflow-hidden rounded-full bg-muted', className)}>
-      <motion.div
-        className={cn('h-full rounded-full bg-primary', barClassName)}
-        style={color ? { background: color } : undefined}
-        initial={{ width: 0 }}
-        animate={{ width: `${w}%` }}
-        transition={{ duration: 0.8, ease: EASE, delay }}
-      />
-    </div>
-  );
-}
-
-/** Seletor segmentado no estilo das abas do shadcn, com o destaque deslizando. */
-export function Segmented<T extends string>({
-  value,
-  options,
-  onChange,
-  label,
-  id,
-}: {
-  value: T;
-  options: [T, string][];
-  onChange: (v: T) => void;
-  label: string;
-  id: string;
-}) {
-  return (
-    <LayoutGroup id={id}>
-      <div role="group" aria-label={label} className="inline-flex h-8 items-center rounded-lg bg-muted p-[3px] text-muted-foreground">
-        {options.map(([v, l]) => {
-          const ativo = v === value;
-          return (
-            <button
-              key={v}
-              type="button"
-              aria-pressed={ativo}
-              onClick={() => onChange(v)}
-              className={cn(
-                'relative h-full rounded-md px-3 text-sm font-medium transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-                ativo ? 'text-foreground' : 'hover:text-foreground',
-              )}
-            >
-              {ativo && <motion.span layoutId="seg" transition={SPRING} className="absolute inset-0 rounded-md bg-background shadow-sm dark:bg-input/40" />}
-              <span className="relative">{l}</span>
-            </button>
-          );
-        })}
-      </div>
-    </LayoutGroup>
   );
 }
 

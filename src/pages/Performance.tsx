@@ -1,354 +1,311 @@
 import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
-import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dot, fmtPct, NameAvatar, PageHeader, Strong } from '@/components/kit';
-import { AnimatedNumber, EASE, GrowBar, Page, Reveal, SPRING, Segmented } from '@/components/motion';
-import { carteira, fechamento, mapaAtividade, metasDoMes, resumoAtendimento, resumoDemos } from '@/data/metrics/indicadores';
+import { useSearchParams } from 'react-router-dom';
+import { Bloco, Capsule, Contexto, Dot, fmtNum, fmtPct, Hl, Intro, NameAvatar, Pilulas, Pill } from '@/components/kit';
+import { EASE, Page, SPRING, Stagger } from '@/components/motion';
+import { carteira, fechamento, mapaAtividade, resumoAtendimento, resumoDemos } from '@/data/metrics/indicadores';
+import { type LinhaVendedor, linhasVendedores, STATUS_VENDEDOR, type StatusVendedor } from '@/data/metrics/vendedores';
 import { DAY, fmtMinutes } from '@/data/time';
 import { cn } from '@/lib/utils';
 import { usePainel } from '@/state/painel';
 
-type Ordem = 'sla' | 'conv' | 'parados';
+type Indicador = 'sla' | 'conversao' | 'parados' | 'whatsapp';
 
-interface Linha {
-  id: string;
-  nome: string;
-  rec: number;
-  carteira: number;
-  parados: number;
-  sla: number | null;
-  med: number | null;
-  comp: number | null;
-  conv: number | null;
-  ganhosMes: number;
-  meta: number;
-  wpp: number | null;
-  retro: number | null;
-  status: 'atencao' | 'abaixo' | 'ok';
-}
-
-const STATUS = {
-  atencao: { rotulo: 'Precisa de atenção', cor: 'var(--primary)', cls: 'text-primary' },
-  abaixo: { rotulo: 'Abaixo do esperado', cor: 'var(--warning)', cls: 'text-warning-foreground' },
-  ok: { rotulo: 'Dentro do processo', cor: 'var(--success)', cls: 'text-muted-foreground' },
+const IND: Record<Indicador, { rotulo: string; pergunta: string; valor: (l: LinhaVendedor) => number | null; fmt: (v: number | null) => string; maiorMelhor: boolean }> = {
+  sla: { rotulo: '1º contato em 1h', pergunta: 'Quem atende o lead em até 1 hora útil', valor: (l) => l.sla, fmt: (v) => fmtPct(v), maiorMelhor: true },
+  conversao: { rotulo: 'Conversão', pergunta: 'Quem transforma lead recebido em cadastro', valor: (l) => l.conversao, fmt: (v) => fmtPct(v), maiorMelhor: true },
+  parados: { rotulo: 'Parados agora', pergunta: 'Quem tem leads há mais de 48h sem interação', valor: (l) => l.parados, fmt: (v) => fmtNum(v), maiorMelhor: false },
+  whatsapp: { rotulo: 'WhatsApp do CRM', pergunta: 'Quem usa o WhatsApp de dentro do CRM (registra sozinho)', valor: (l) => l.whatsapp, fmt: (v) => fmtPct(v), maiorMelhor: true },
 };
 
-function statusDe(sla: number | null, parados: number): Linha['status'] {
-  if ((sla ?? 0) < 50 || parados >= 2) return 'atencao';
-  if ((sla ?? 0) < 70 || parados > 0) return 'abaixo';
-  return 'ok';
-}
-
 export function Performance() {
-  const { ds, views, agora, config, vendedores, metas } = usePainel();
+  const { ds, views, agora, config, vendedores, metas, okrs } = usePainel();
   const p = config.params;
-  const [ordem, setOrdem] = useState<Ordem>('sla');
-  const [sel, setSel] = useState<string | null>(null);
+  const [params, setParams] = useSearchParams();
+  const [ind, setInd] = useState<Indicador>('sla');
 
   const { linhas, time } = useMemo(() => {
     const ini = agora - 30 * DAY;
-    const mes = metasDoMes(views, agora, p, metas, vendedores.map((v) => v.id));
-    const linhas: Linha[] = vendedores.map((u) => {
-      const r = resumoAtendimento(views, ds, p, ini, agora, u.id);
-      const c = carteira(views, agora, p, u.id);
-      const f = fechamento(views, ini, agora, u.id);
-      const dm = resumoDemos(views, agora, ini, agora, u.id);
-      return {
-        id: u.id,
-        nome: u.nome,
-        rec: r.recebidos,
-        carteira: c.abertos,
-        parados: c.parados,
-        sla: r.slaPct,
-        med: r.medianaPrimeiroContatoMin,
-        comp: dm.comparecimentoPct,
-        conv: r.recebidos ? (f.ganhos / r.recebidos) * 100 : null,
-        ganhosMes: mes.porVendedor.find((x) => x.id === u.id)?.ganhos ?? 0,
-        meta: metas[u.id] ?? 0,
-        wpp: r.usoWhatsappCrmPct,
-        retro: r.retroativosPct,
-        status: statusDe(r.slaPct, c.parados),
-      };
-    });
+    const linhas = linhasVendedores(views, ds, p, agora, vendedores, metas);
     const r = resumoAtendimento(views, ds, p, ini, agora);
     const c = carteira(views, agora, p);
     const f = fechamento(views, ini, agora);
     const dm = resumoDemos(views, agora, ini, agora);
     return {
       linhas,
-      time: {
-        rec: r.recebidos,
-        carteira: c.abertos,
-        parados: c.parados,
-        sla: r.slaPct,
-        med: r.medianaPrimeiroContatoMin,
-        comp: dm.comparecimentoPct,
-        conv: r.recebidos ? (f.ganhos / r.recebidos) * 100 : null,
-        ganhos: mes.ganhos,
-        meta: mes.meta,
-        wpp: r.usoWhatsappCrmPct,
-      },
+      time: { sla: r.slaPct, med: r.medianaPrimeiroContatoMin, parados: c.parados, conversao: r.recebidos ? (f.ganhos / r.recebidos) * 100 : null, whatsapp: r.usoWhatsappCrmPct, comp: dm.comparecimentoPct },
     };
   }, [ds, views, agora, p, vendedores, metas]);
 
-  const ordenadas = [...linhas].sort((a, b) =>
-    ordem === 'conv' ? (b.conv ?? 0) - (a.conv ?? 0) : ordem === 'parados' ? b.parados - a.parados || (a.sla ?? 0) - (b.sla ?? 0) : (b.sla ?? 0) - (a.sla ?? 0),
-  );
+  const krs = okrs.flatMap((o) => o.resultados);
+  const metaInd: Record<Indicador, number | null> = {
+    sla: krs.find((k) => k.indicador === 'sla_1h')?.alvo ?? null,
+    conversao: null,
+    parados: null,
+    whatsapp: krs.find((k) => k.indicador === 'uso_whatsapp_crm')?.alvo ?? null,
+  };
+  const mediaTime: Record<Indicador, number | null> = { sla: time.sla, conversao: time.conversao, parados: linhas.length ? time.parados / linhas.length : null, whatsapp: time.whatsapp };
+
   const pior = [...linhas].sort((a, b) => (a.sla ?? 0) - (b.sla ?? 0))[0];
-  const det = linhas.find((l) => l.id === (sel ?? pior?.id)) ?? linhas[0];
-  const m = useMemo(() => mapaAtividade(ds.interacoes, det.id, agora - 28 * DAY, agora), [ds, det.id, agora]);
-  const maxM = Math.max(1, ...m.flat());
-  const totalM = m.flat().reduce((a, b) => a + b, 0);
-  const tardePct = totalM ? (m.reduce((s, dia) => s + dia[8] + dia[9], 0) / totalM) * 100 : 0;
+  const selId = params.get('v') ?? pior?.id;
+  const det = linhas.find((l) => l.id === selId) ?? linhas[0];
+  const selecionar = (id: string) => setParams({ v: id }, { replace: true });
 
   const criticos = linhas.filter((l) => (l.sla ?? 0) < 50);
-  const paradosCriticos = criticos.reduce((s, l) => s + l.parados, 0);
-  const convCriticos = criticos.length ? criticos.reduce((s, l) => s + (l.conv ?? 0), 0) / criticos.length : null;
+  const bons = linhas.filter((l) => (l.sla ?? 0) >= 70);
+  const media = (xs: (number | null)[]) => {
+    const v = xs.filter((x): x is number => x !== null);
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  };
+  const convCriticos = media(criticos.map((l) => l.conversao));
+  const convBons = media(bons.map((l) => l.conversao));
 
-  let insight: string;
-  if (tardePct >= 35) insight = `${fmtPct(tardePct)} das interações são registradas depois das 16h, em bloco. Os leads da manhã esperam o dia todo pelo contato.`;
-  else if ((det.retro ?? 0) >= 15) insight = `${fmtPct(det.retro)} das interações são registradas mais de 15 minutos depois do ocorrido. O contato acontece, mas o CRM fica para depois.`;
-  else if ((det.wpp ?? 0) < 10) insight = `Quase não usa o WhatsApp do CRM (${fmtPct(det.wpp)}): cada mensagem precisa ser registrada à mão.`;
-  else if (det.parados > 0) insight = `Bom ritmo de registros, mas ${det.parados} ${det.parados === 1 ? 'lead está parado' : 'leads estão parados'} há mais de ${p.paradoHoras}h.`;
-  else insight = 'Registra ao longo do dia, logo depois de cada contato. É o padrão que o time deveria seguir.';
-
-  // processo × resultado
-  const xs = linhas.map((l) => l.sla ?? 0);
-  const ys = linhas.map((l) => l.conv ?? 0);
-  const x0 = Math.max(0, Math.floor((Math.min(...xs) - 8) / 10) * 10);
-  const x1 = Math.min(100, Math.ceil((Math.max(...xs) + 8) / 10) * 10);
-  const y0 = Math.max(0, Math.floor(Math.min(...ys) - 4));
-  const y1 = Math.ceil(Math.max(...ys) + 5);
-  const px = (v: number) => ((v - x0) / (x1 - x0)) * 100;
-  const py = (v: number) => ((v - y0) / (y1 - y0)) * 100;
-  const mx = time.sla ?? 0;
-  const my = time.conv ?? 0;
-  const pontos: { l: Linha; dx: number }[] = [];
-  for (const l of [...linhas].sort((a, b) => (a.sla ?? 0) - (b.sla ?? 0))) {
-    const perto = pontos.filter((q) => Math.abs(px(q.l.sla ?? 0) - px(l.sla ?? 0)) < 6 && Math.abs(py(q.l.conv ?? 0) - py(l.conv ?? 0)) < 9);
-    pontos.push({ l, dx: perto.length ? Math.max(...perto.map((q) => q.dx)) + 30 : 0 });
-  }
+  // ranking
+  const cfg = IND[ind];
+  const ranking = [...linhas].sort((a, b) => ((cfg.valor(b) ?? 0) - (cfg.valor(a) ?? 0)) * (cfg.maiorMelhor ? 1 : -1));
+  const maxV = ind === 'parados' ? Math.max(3, ...linhas.map((l) => l.parados)) : 100;
+  const ruim = (l: LinhaVendedor) => {
+    const v = cfg.valor(l) ?? 0;
+    if (ind === 'parados') return v > 0;
+    const ref = metaInd[ind] ?? mediaTime[ind] ?? 0;
+    return ind === 'sla' ? v < 50 : ind === 'whatsapp' ? v < ref / 2 : v < ref - 5;
+  };
 
   return (
-    <Page>
-      <PageHeader
-        title="Performance por vendedor"
-        description={
+    <Page className="gap-8">
+      <Intro
+        tag="Time · últimos 30 dias"
+        title={
           criticos.length > 0 ? (
             <>
-              Últimos 30 dias. <Strong tone="primary">{criticos.length === 1 ? '1 vendedor tem' : `${criticos.length} vendedores têm`}</Strong> menos de 50% de primeiro contato em
-              até 1 hora; juntos somam {paradosCriticos} dos {time.parados} leads parados e convertem {fmtPct(convCriticos)}, contra {fmtPct(time.conv)} do time. Os números por pessoa
-              são simulados.
+              <Hl>
+                {criticos.length} {criticos.length === 1 ? 'vendedor faz' : 'vendedores fazem'}
+              </Hl>{' '}
+              menos da metade do 1º contato no <Pill>prazo</Pill> <Capsule />.
             </>
           ) : (
-            'Últimos 30 dias. Todos acima de 50% de primeiro contato em até 1 hora. Os números por pessoa são simulados.'
+            <>
+              Todo o time faz o 1º contato no <Pill>prazo</Pill> <Capsule /> na maioria dos leads.
+            </>
+          )
+        }
+        aside={
+          convCriticos !== null && convBons !== null ? (
+            <>
+              Quem atende em até 1 hora em 70% ou mais dos leads converte {fmtPct(convBons)}. Quem fica abaixo de 50% converte {fmtPct(convCriticos)}. Os números por pessoa são
+              simulados.
+            </>
+          ) : (
+            'Os números por pessoa são simulados.'
           )
         }
       />
 
-      <Reveal>
-        <Card className="gap-0 pb-0">
-          <CardHeader className="pb-3">
-            <CardTitle>Inside Sales · {linhas.length} vendedores</CardTitle>
-            <CardDescription>Clique em um vendedor para ver o detalhe</CardDescription>
-            <CardAction>
-              <Segmented id="ordem" label="Ordenar por" value={ordem} onChange={setOrdem} options={[['sla', 'SLA'], ['conv', 'Conversão'], ['parados', 'Parados']]} />
-            </CardAction>
-          </CardHeader>
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="pl-4">Vendedor</TableHead>
-                <TableHead className="text-right">Recebidos</TableHead>
-                <TableHead className="text-right">Carteira</TableHead>
-                <TableHead className="w-[18%]">1º contato em 1h</TableHead>
-                <TableHead className="text-right">Mediana</TableHead>
-                <TableHead className="text-right">Parados</TableHead>
-                <TableHead className="text-right">Comparec.</TableHead>
-                <TableHead className="text-right">Conversão</TableHead>
-                <TableHead className="text-right">No mês</TableHead>
-                <TableHead className="pr-4 text-right">WhatsApp CRM</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ordenadas.map((l, i) => {
-                const ativo = l.id === det.id;
-                return (
-                  <motion.tr
-                    key={l.id}
-                    layout
-                    transition={SPRING}
-                    onClick={() => setSel(l.id)}
-                    aria-selected={ativo}
-                    className={cn('cursor-pointer border-b transition-colors hover:bg-muted/50', ativo && 'bg-muted/60')}
-                  >
-                    <td className="p-2 pl-4 align-middle">
-                      <span className="flex items-center gap-2.5">
-                        <span className="relative">
-                          <NameAvatar nome={l.nome} size={30} />
-                          <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-card" style={{ background: STATUS[l.status].cor }} />
-                        </span>
-                        <span className="flex flex-col">
-                          <span className="font-medium">{l.nome}</span>
-                          <span className={cn('text-xs', STATUS[l.status].cls)}>{STATUS[l.status].rotulo}</span>
-                        </span>
-                      </span>
-                    </td>
-                    <td className="num p-2 text-right align-middle">{l.rec}</td>
-                    <td className="num p-2 text-right align-middle">{l.carteira}</td>
-                    <td className="p-2 align-middle">
-                      <div className="flex items-center gap-2">
-                        <GrowBar pct={l.sla} color={(l.sla ?? 0) < 50 ? 'var(--primary)' : (l.sla ?? 0) < 70 ? 'var(--warning)' : 'var(--chart-5)'} delay={0.1 + i * 0.04} />
-                        <span className={cn('num w-9 text-right', (l.sla ?? 0) < 50 && 'text-primary')}>{fmtPct(l.sla)}</span>
-                      </div>
-                    </td>
-                    <td className={cn('num p-2 text-right align-middle whitespace-nowrap', (l.sla ?? 0) < 50 && 'text-primary')}>{l.med !== null ? fmtMinutes(l.med) : '—'}</td>
-                    <td className={cn('num p-2 text-right align-middle font-medium', l.parados >= 2 ? 'text-primary' : l.parados === 1 ? 'text-warning-foreground' : 'text-muted-foreground')}>
-                      {l.parados}
-                    </td>
-                    <td className="num p-2 text-right align-middle">{fmtPct(l.comp)}</td>
-                    <td className="num p-2 text-right align-middle font-medium">{fmtPct(l.conv)}</td>
-                    <td className="num p-2 text-right align-middle">
-                      {l.ganhosMes}
-                      <span className="text-muted-foreground">/{l.meta}</span>
-                    </td>
-                    <td className={cn('num p-2 pr-4 text-right align-middle', (l.wpp ?? 0) < 10 && 'text-primary')}>{fmtPct(l.wpp)}</td>
-                  </motion.tr>
-                );
-              })}
-            </TableBody>
-            <TableFooter>
-              <TableRow>
-                <TableCell className="pl-4 font-medium">Time</TableCell>
-                <TableCell className="num text-right">{time.rec}</TableCell>
-                <TableCell className="num text-right">{time.carteira}</TableCell>
-                <TableCell className="num">{fmtPct(time.sla)}</TableCell>
-                <TableCell className="num text-right">{time.med !== null ? fmtMinutes(time.med) : '—'}</TableCell>
-                <TableCell className="num text-right">{time.parados}</TableCell>
-                <TableCell className="num text-right">{fmtPct(time.comp)}</TableCell>
-                <TableCell className="num text-right">{fmtPct(time.conv)}</TableCell>
-                <TableCell className="num text-right">
-                  {time.ganhos}/{time.meta}
-                </TableCell>
-                <TableCell className="num pr-4 text-right">{fmtPct(time.wpp)}</TableCell>
-              </TableRow>
-            </TableFooter>
-          </Table>
-        </Card>
-      </Reveal>
-
-      <Reveal className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <NameAvatar nome={det.nome} size={40} />
-              <div className="flex flex-col">
-                <CardTitle className="text-lg">{det.nome}</CardTitle>
-                <CardDescription className={STATUS[det.status].cls}>{STATUS[det.status].rotulo}</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-5">
-            <motion.div key={det.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25 }} className="grid grid-cols-2 gap-3">
-              {(
-                [
-                  ['1º contato em até 1h', det.sla, (v: number) => `${Math.round(v)}%`, `time: ${fmtPct(time.sla)}`, (det.sla ?? 0) < 50],
-                  ['Mediana até o 1º contato', det.med, (v: number) => fmtMinutes(v), `time: ${time.med !== null ? fmtMinutes(time.med) : '—'}`, (det.sla ?? 0) < 50],
-                  ['Parados agora', det.parados, undefined, `carteira de ${det.carteira} leads`, det.parados >= 2],
-                  ['Uso do WhatsApp do CRM', det.wpp, (v: number) => `${Math.round(v)}%`, `time: ${fmtPct(time.wpp)}`, (det.wpp ?? 0) < 10],
-                ] as [string, number | null, ((v: number) => string) | undefined, string, boolean][]
-              ).map(([rot, val, fmt, sub, ruim]) => (
-                <div key={rot} className="flex flex-col gap-1 rounded-lg border p-3">
-                  <span className="text-xs text-muted-foreground">{rot}</span>
-                  <span className={cn('text-2xl font-semibold tracking-tight', ruim && 'text-primary')}>{val === null ? '—' : <AnimatedNumber value={val} format={fmt} />}</span>
-                  <span className="text-xs text-muted-foreground">{sub}</span>
-                </div>
-              ))}
-            </motion.div>
-            <div className="flex flex-col gap-2.5">
-              <div className="flex items-baseline justify-between">
-                <span className="text-sm font-medium">Interações registradas por hora · 4 semanas</span>
-                <span className="text-xs text-muted-foreground">mais forte = mais</span>
-              </div>
-              <div role="img" aria-label={`Mapa de interações de ${det.nome}`} className="grid grid-cols-[32px_repeat(10,minmax(0,1fr))] items-center gap-1">
-                <span />
-                {Array.from({ length: 10 }, (_, h) => (
-                  <span key={h} className="text-center text-[10.5px] text-muted-foreground">
-                    {8 + h}h
+      <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+        <Bloco titulo="Ranking" className="lg:col-span-2">
+          <div className="flex flex-col gap-3">
+            <Pilulas id="ind" label="Indicador" value={ind} onChange={setInd} options={(Object.keys(IND) as Indicador[]).map((k) => [k, IND[k].rotulo])} />
+            <p className="text-sm text-muted-foreground">{cfg.pergunta}. Clique em um nome para ver o detalhe.</p>
+          </div>
+          <div className="flex flex-col gap-1">
+            {ranking.map((l, i) => {
+              const v = cfg.valor(l);
+              const w = Math.max(0, Math.min(100, ((v ?? 0) / maxV) * 100));
+              const ativo = l.id === det.id;
+              return (
+                <motion.button
+                  key={l.id}
+                  layout="position"
+                  transition={SPRING}
+                  type="button"
+                  onClick={() => selecionar(l.id)}
+                  className={cn('grid grid-cols-[132px_1fr_56px] items-center gap-3 rounded-xl px-2 py-2 text-left text-sm transition-colors', ativo ? 'bg-muted' : 'hover:bg-muted/60')}
+                >
+                  <span className="flex items-center gap-2 truncate">
+                    <NameAvatar nome={l.nome} size={24} />
+                    <span className={cn(ativo && 'font-medium')}>{l.nome}</span>
                   </span>
-                ))}
-                {['Seg', 'Ter', 'Qua', 'Qui', 'Sex'].map((dia, di) => (
-                  <div key={dia} className="contents">
-                    <span className="text-xs text-muted-foreground">{dia}</span>
-                    {m[di].map((n, h) => (
-                      <motion.span
-                        key={`${det.id}-${di}-${h}`}
-                        title={`${dia} ${8 + h}h: ${n} interações`}
-                        className="h-6 rounded-[4px]"
-                        initial={{ opacity: 0, scale: 0.6 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ duration: 0.3, ease: EASE, delay: (di * 10 + h) * 0.006 }}
-                        style={{ background: n === 0 ? 'var(--muted)' : `color-mix(in oklch, var(--primary) ${Math.round(18 + (n / maxM) * 82)}%, var(--card))` }}
-                      />
-                    ))}
-                  </div>
-                ))}
-              </div>
-              <p className="text-sm text-muted-foreground">{insight}</p>
-            </div>
-          </CardContent>
-        </Card>
+                  <span className="relative h-2.5 rounded-full bg-track">
+                    <motion.span
+                      className={cn('absolute inset-y-0 left-0 rounded-full', ruim(l) ? 'bg-primary' : 'bg-ink')}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${w}%` }}
+                      transition={{ duration: 0.7, ease: EASE, delay: 0.05 + i * 0.03 }}
+                    />
+                    {ind !== 'parados' && mediaTime[ind] !== null && (
+                      <span aria-hidden="true" className="absolute -inset-y-1.5 w-px border-l border-dashed border-ink/50" style={{ left: `${mediaTime[ind]}%` }} />
+                    )}
+                    {metaInd[ind] !== null && <span aria-hidden="true" className="absolute -inset-y-1.5 w-0.5 rounded-full bg-primary" style={{ left: `calc(${metaInd[ind]}% - 1px)` }} />}
+                  </span>
+                  <span className={cn('num text-right font-medium', ruim(l) && 'text-primary')}>{cfg.fmt(v)}</span>
+                </motion.button>
+              );
+            })}
+          </div>
+          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+            {ind !== 'parados' && (
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 border-l border-dashed border-ink/60" /> média do time {cfg.fmt(mediaTime[ind])}
+              </span>
+            )}
+            {metaInd[ind] !== null && (
+              <span className="flex items-center gap-1.5">
+                <span className="h-3 w-0.5 rounded-full bg-primary" /> meta {cfg.fmt(metaInd[ind])}
+              </span>
+            )}
+            <span className="flex items-center gap-1.5">
+              <Dot color="var(--primary)" /> abaixo do esperado
+            </span>
+          </div>
+        </Bloco>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Processo × resultado</CardTitle>
-            <CardDescription>Horizontal: 1º contato em até 1h. Vertical: conversão em cadastro (30 dias). Linhas na média do time.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="relative mt-1 mr-4 mb-6 ml-8 h-[320px] border-b border-l">
-              <div aria-hidden="true" className="absolute inset-y-0 border-l border-dashed" style={{ left: `${px(mx)}%` }} />
-              <div aria-hidden="true" className="absolute inset-x-0 border-t border-dashed" style={{ bottom: `${py(my)}%` }} />
-              <div aria-hidden="true" className="absolute top-0 right-0 bg-primary/[0.05]" style={{ left: `${px(mx)}%`, bottom: `${py(my)}%` }} />
-              {pontos.map(({ l, dx }) => {
-                const ativo = l.id === det.id;
-                return (
-                  <motion.button
-                    key={l.id}
-                    type="button"
-                    onClick={() => setSel(l.id)}
-                    aria-label={`${l.nome}: ${fmtPct(l.sla)} no prazo, ${fmtPct(l.conv)} de conversão`}
-                    initial={{ opacity: 0, scale: 0.4 }}
-                    animate={{ opacity: 1, scale: ativo ? 1.12 : 1 }}
-                    transition={SPRING}
-                    className={cn('absolute flex size-8 items-center justify-center rounded-full text-[11px] font-semibold text-white ring-2 ring-card', ativo ? 'z-10' : 'z-0')}
-                    style={{
-                      left: `calc(${px(l.sla ?? 0)}% - 16px + ${dx}px)`,
-                      bottom: `calc(${py(l.conv ?? 0)}% - 16px)`,
-                      background: ativo ? 'var(--foreground)' : STATUS[l.status].cor,
-                      color: ativo ? 'var(--background)' : 'white',
-                    }}
-                  >
-                    {l.nome.slice(0, 2).toUpperCase()}
-                  </motion.button>
-                );
-              })}
-              <span className="absolute -top-1.5 -left-8 text-[11px] text-muted-foreground">{y1}%</span>
-              <span className="absolute -bottom-1.5 -left-7 text-[11px] text-muted-foreground">{y0}%</span>
-              <span className="absolute -bottom-6 left-0 text-[11px] text-muted-foreground">{x0}%</span>
-              <span className="absolute right-0 -bottom-6 text-[11px] text-muted-foreground">{x1}%</span>
-            </div>
-            <div className="grid grid-cols-3 gap-2 text-xs text-muted-foreground">
-              {(Object.keys(STATUS) as Linha['status'][]).map((k) => (
-                <span key={k} className="flex items-center gap-1.5">
-                  <Dot color={STATUS[k].cor} />
-                  {STATUS[k].rotulo}
-                </span>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </Reveal>
+        <Detalhe l={det} time={time} />
+      </div>
+
+      <Stagger className="grid gap-4 lg:grid-cols-3">
+        <Bloco titulo="Processo × resultado" className="lg:col-span-2">
+          <Dispersao linhas={linhas} selId={det.id} onSel={selecionar} mediaX={time.sla} mediaY={time.conversao} />
+        </Bloco>
+        <Bloco tom="pink" onda titulo="O que isso mostra">
+          <p className="display text-[28px] leading-[1.15]">
+            {convBons !== null && convCriticos !== null && convCriticos > 0 ? (
+              <>Atender no prazo converte {fmtNum(convBons / convCriticos, 1)}× mais.</>
+            ) : (
+              <>Atender no prazo converte mais.</>
+            )}
+          </p>
+          <p className="text-sm leading-relaxed text-white/85">
+            Cada bolinha é um vendedor. Quanto mais à direita, mais leads atendidos em até 1 hora útil; quanto mais alto, mais cadastros. O canto de cima à direita é o processo
+            funcionando.
+          </p>
+        </Bloco>
+      </Stagger>
     </Page>
+  );
+}
+
+function Detalhe({ l, time }: { l: LinhaVendedor; time: { sla: number | null; med: number | null; parados: number; conversao: number | null; whatsapp: number | null } }) {
+  const { ds, agora, config } = usePainel();
+  const m = useMemo(() => mapaAtividade(ds.interacoes, l.id, agora - 28 * DAY, agora), [ds, l.id, agora]);
+  const maxM = Math.max(1, ...m.flat());
+  const totalM = m.flat().reduce((a, b) => a + b, 0);
+  const tardePct = totalM ? (m.reduce((s, dia) => s + dia[8] + dia[9], 0) / totalM) * 100 : 0;
+
+  let leitura: string;
+  if (tardePct >= 35) leitura = `${fmtPct(tardePct)} das interações são registradas depois das 16h, em bloco. Os leads da manhã esperam o dia todo.`;
+  else if ((l.retroativos ?? 0) >= 15) leitura = `${fmtPct(l.retroativos)} das interações entram no CRM mais de 15 minutos depois. O contato acontece, o registro fica para depois.`;
+  else if ((l.whatsapp ?? 0) < 10) leitura = `Quase não usa o WhatsApp do CRM (${fmtPct(l.whatsapp)}): cada mensagem precisa ser registrada à mão.`;
+  else if (l.parados > 0) leitura = `Registra bem ao longo do dia, mas ${l.parados} ${l.parados === 1 ? 'lead está parado' : 'leads estão parados'} há mais de ${config.params.paradoHoras}h.`;
+  else leitura = 'Registra ao longo do dia, logo depois de cada contato. É o padrão que o time deveria seguir.';
+
+  const numeros: [string, string, string, boolean][] = [
+    ['1º contato em 1h', fmtPct(l.sla), `time ${fmtPct(time.sla)}`, (l.sla ?? 0) < 50],
+    ['Mediana até o contato', l.medianaMin === null ? '—' : fmtMinutes(l.medianaMin), `time ${time.med === null ? '—' : fmtMinutes(time.med)}`, (l.medianaMin ?? 0) > 60],
+    ['Parados agora', fmtNum(l.parados), `carteira de ${l.carteira}`, l.parados > 0],
+    ['Conversão', fmtPct(l.conversao), `time ${fmtPct(time.conversao)}`, (l.conversao ?? 0) < (time.conversao ?? 0) - 5],
+  ];
+
+  return (
+    <Bloco titulo="Detalhe">
+      <div className="flex items-center gap-3">
+        <NameAvatar nome={l.nome} size={44} />
+        <div className="flex flex-col">
+          <span className="display text-2xl">{l.nome}</span>
+          <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <Dot color={STATUS_VENDEDOR[l.status as StatusVendedor].cor} />
+            {STATUS_VENDEDOR[l.status as StatusVendedor].rotulo}
+          </span>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border bg-border">
+        {numeros.map(([rot, v, ctx, mal]) => (
+          <div key={rot} className="flex flex-col gap-1 bg-card p-3.5">
+            <span className="text-xs text-muted-foreground">{rot}</span>
+            <span className={cn('num text-2xl font-medium tracking-tight', mal && 'text-primary')}>{v}</span>
+            <span className="text-xs text-muted-foreground">{ctx}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-col gap-2">
+        <span className="text-xs text-muted-foreground">Registros por hora · 4 semanas (8h a 18h)</span>
+        <div className="grid gap-1" style={{ gridTemplateColumns: 'repeat(10, minmax(0, 1fr))' }} role="img" aria-label="Mapa de registros por dia e hora">
+          {m.flatMap((dia, di) =>
+            dia.map((n, h) => (
+              <motion.span
+                key={`${di}-${h}`}
+                className="aspect-square rounded-[4px]"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.25, delay: (di * 10 + h) * 0.005 }}
+                style={{ background: n === 0 ? 'var(--track)' : `color-mix(in oklch, var(--primary) ${Math.round(15 + (n / maxM) * 85)}%, white)` }}
+                title={`${['Seg', 'Ter', 'Qua', 'Qui', 'Sex'][di]} ${8 + h}h: ${n}`}
+              />
+            )),
+          )}
+        </div>
+      </div>
+      <Contexto className="text-sm leading-relaxed text-foreground opacity-100" itens={[leitura]} />
+    </Bloco>
+  );
+}
+
+function Dispersao({ linhas, selId, onSel, mediaX, mediaY }: { linhas: LinhaVendedor[]; selId: string; onSel: (id: string) => void; mediaX: number | null; mediaY: number | null }) {
+  const y1 = Math.max(10, Math.ceil((Math.max(...linhas.map((l) => l.conversao ?? 0)) + 3) / 5) * 5);
+  const px = (v: number) => v;
+  const py = (v: number) => (v / y1) * 100;
+  const pontos: { l: LinhaVendedor; dx: number }[] = [];
+  for (const l of [...linhas].sort((a, b) => (a.sla ?? 0) - (b.sla ?? 0))) {
+    const perto = pontos.filter((q) => Math.abs(px(q.l.sla ?? 0) - px(l.sla ?? 0)) < 5 && Math.abs(py(q.l.conversao ?? 0) - py(l.conversao ?? 0)) < 9);
+    pontos.push({ l, dx: perto.length ? Math.max(...perto.map((q) => q.dx)) + 30 : 0 });
+  }
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="relative mt-2 mr-5 mb-7 ml-10 h-[300px] border-b border-l border-ink/20">
+        {[25, 50, 75].map((x) => (
+          <span key={x} aria-hidden="true" className="absolute inset-y-0 border-l border-ink/[0.06]" style={{ left: `${x}%` }} />
+        ))}
+        {mediaX !== null && <span aria-hidden="true" className="absolute inset-y-0 border-l border-dashed border-ink/40" style={{ left: `${px(mediaX)}%` }} />}
+        {mediaY !== null && <span aria-hidden="true" className="absolute inset-x-0 border-t border-dashed border-ink/40" style={{ bottom: `${py(mediaY)}%` }} />}
+        {pontos.map(({ l, dx }) => {
+          const ativo = l.id === selId;
+          return (
+            <motion.button
+              key={l.id}
+              type="button"
+              onClick={() => onSel(l.id)}
+              aria-label={`${l.nome}: ${fmtPct(l.sla)} no prazo, ${fmtPct(l.conversao)} de conversão`}
+              title={`${l.nome}: ${fmtPct(l.sla)} no prazo · ${fmtPct(l.conversao)} de conversão`}
+              initial={{ opacity: 0, scale: 0.4 }}
+              animate={{ opacity: 1, scale: ativo ? 1.15 : 1 }}
+              transition={SPRING}
+              className={cn('absolute flex size-8 items-center justify-center rounded-full text-[11px] font-semibold ring-2 ring-card', ativo ? 'z-10 bg-ink text-white' : 'z-0 text-white')}
+              style={{
+                left: `calc(${px(l.sla ?? 0)}% - 16px + ${dx}px)`,
+                bottom: `calc(${py(l.conversao ?? 0)}% - 16px)`,
+                background: ativo ? undefined : STATUS_VENDEDOR[l.status].cor,
+              }}
+            >
+              {l.nome.slice(0, 2).toUpperCase()}
+            </motion.button>
+          );
+        })}
+        <span className="absolute -top-2 -left-9 text-[11px] text-muted-foreground">{y1}%</span>
+        <span className="absolute -bottom-2 -left-6 text-[11px] text-muted-foreground">0%</span>
+        <span className="absolute right-0 -bottom-6 text-[11px] text-muted-foreground">100%</span>
+        <span className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[11px] text-muted-foreground">1º contato em até 1h →</span>
+        <span className="absolute top-1/2 -left-9 origin-center -translate-y-1/2 -rotate-90 text-[11px] whitespace-nowrap text-muted-foreground">conversão →</span>
+      </div>
+      <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+        {(Object.keys(STATUS_VENDEDOR) as StatusVendedor[]).map((k) => (
+          <span key={k} className="flex items-center gap-1.5">
+            <Dot color={STATUS_VENDEDOR[k].cor} />
+            {STATUS_VENDEDOR[k].rotulo}
+          </span>
+        ))}
+        <span className="flex items-center gap-1.5">
+          <span className="h-3 border-l border-dashed border-ink/60" /> média do time
+        </span>
+      </div>
+    </div>
   );
 }

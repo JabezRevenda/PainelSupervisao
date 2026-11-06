@@ -1,12 +1,10 @@
 import { ChevronsLeftRight, Search } from 'lucide-react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
-import { type Ref, useMemo, useState } from 'react';
+import { type ReactNode, type Ref, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
 import { Etiqueta, etiquetaDaEtapa, LeadCard, Origem, tempoCurto } from '@/components/crm';
-import { NameAvatar, PageHeader, Strong } from '@/components/kit';
+import { Capsule, Hl, Intro, NameAvatar, Pill } from '@/components/kit';
 import { EASE, Page, Reveal, SPRING } from '@/components/motion';
 import { alertas, type Alerta, type LeadView } from '@/data/metrics/estado';
 import { carteira } from '@/data/metrics/indicadores';
@@ -121,24 +119,27 @@ export function Kanban() {
 
   return (
     <Page className="gap-5">
-      <PageHeader
-        title="Kanban de hoje"
-        description={
+      <Intro
+        tag="Kanban · as etapas do CRM"
+        title={
           <>
-            As etapas do CRM com os leads do Inside Sales. <Strong>{cart.abertos} leads</Strong> estão com os vendedores agora:{' '}
-            <Strong tone="primary">{cart.parados} parados</Strong>, <Strong tone="primary">{cart.semContato} sem contato</Strong> e{' '}
-            <Strong tone="warning">{cart.atencao} em atenção</Strong>. As etiquetas coloridas são do painel.
+            <Hl>{cart.abertos} leads</Hl> com os vendedores. <Pill>{cart.parados}</Pill> <Capsule /> {cart.parados === 1 ? 'está parado' : 'estão parados'}.
+          </>
+        }
+        aside={
+          <>
+            Mesmo quadro do CRM. As etiquetas coloridas são do painel: {cart.semContato} sem contato e {cart.atencao} em atenção. Clique no cartão para ver a linha do tempo.
           </>
         }
       />
 
-      <Reveal className="flex flex-wrap items-end gap-3">
+      <Reveal className="flex flex-wrap items-center gap-2">
         <div className="relative w-full sm:w-64">
-          <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar contato ou revenda" className="pl-8" aria-label="Buscar contato ou revenda" />
+          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar contato ou revenda" className="h-9 rounded-full bg-card pl-9" aria-label="Buscar contato ou revenda" />
         </div>
         <Select value={vendedor} onValueChange={setVendedor}>
-          <SelectTrigger className="w-44" aria-label="Vendedor">
+          <SelectTrigger className="h-9 w-48 rounded-full bg-card" aria-label="Vendedor">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -151,7 +152,7 @@ export function Kanban() {
           </SelectContent>
         </Select>
         <Select value={origem} onValueChange={setOrigem}>
-          <SelectTrigger className="w-44" aria-label="Origem">
+          <SelectTrigger className="h-9 w-44 rounded-full bg-card" aria-label="Origem">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -163,18 +164,12 @@ export function Kanban() {
             ))}
           </SelectContent>
         </Select>
-        <div className="flex h-8 items-center gap-2 px-1">
-          <Switch id="so-alerta" checked={soAlerta} onCheckedChange={setSoAlerta} />
-          <Label htmlFor="so-alerta" className="font-normal">
-            Só com alerta
-          </Label>
-        </div>
-        <div className="flex h-8 items-center gap-2 px-1">
-          <Switch id="pre-vendas" checked={preVendas} onCheckedChange={setPreVendas} />
-          <Label htmlFor="pre-vendas" className="font-normal">
-            Mostrar pré-vendas e saídas
-          </Label>
-        </div>
+        <Alternar ativo={soAlerta} onClick={() => setSoAlerta((x) => !x)}>
+          Só com alerta
+        </Alternar>
+        <Alternar ativo={preVendas} onClick={() => setPreVendas((x) => !x)}>
+          Pré-vendas e saídas
+        </Alternar>
       </Reveal>
 
       <Reveal>
@@ -195,7 +190,7 @@ export function Kanban() {
                   layout
                   transition={SPRING}
                   aria-label={`${ETAPA_LABEL[etapa]}: ${total} leads`}
-                  className={cn('flex shrink-0 flex-col rounded-lg bg-muted/70 dark:bg-muted/40', recolhida ? 'w-11' : 'w-[284px]')}
+                  className={cn('flex shrink-0 flex-col rounded-[18px] bg-ink/[0.045]', recolhida ? 'w-11' : 'w-[284px]')}
                 >
                   {recolhida ? (
                     <button
@@ -221,7 +216,7 @@ export function Kanban() {
                         </div>
                         {subtitulo && <span className="text-xs text-muted-foreground">{subtitulo}</span>}
                       </header>
-                      <div className="flex max-h-[calc(100vh-290px)] min-h-[360px] flex-col gap-2.5 overflow-y-auto px-2.5 pb-3">
+                      <div className="flex max-h-[calc(100vh-150px)] min-h-[360px] flex-col gap-2.5 overflow-y-auto px-2.5 pb-3">
                         <AnimatePresence mode="popLayout" initial={false}>
                           {ehPre
                             ? listaPre.slice(0, mostrar).map((it) => <CartaoPreVendas key={it.lead.id} item={it} agora={agora} responsavel={responsavelPre(it.sdr)} />)
@@ -243,7 +238,7 @@ export function Kanban() {
                           <button
                             type="button"
                             onClick={() => setExpandidas((x) => ({ ...x, [etapa]: true }))}
-                            className="rounded-md py-2 text-sm text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                            className="rounded-full py-2 text-sm text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
                           >
                             Mostrar mais {total - LIMITE}
                           </button>
@@ -258,5 +253,23 @@ export function Kanban() {
         </LayoutGroup>
       </Reveal>
     </Page>
+  );
+}
+
+/** Filtro liga/desliga em pílula. */
+function Alternar({ ativo, onClick, children }: { ativo: boolean; onClick: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-pressed={ativo}
+      onClick={onClick}
+      className={cn(
+        'inline-flex h-9 items-center gap-2 rounded-full border px-4 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring',
+        ativo ? 'border-ink bg-ink text-white' : 'border-ink/15 bg-card hover:border-ink/40',
+      )}
+    >
+      <span className={cn('size-2 rounded-full', ativo ? 'bg-primary' : 'bg-ink/20')} />
+      {children}
+    </button>
   );
 }

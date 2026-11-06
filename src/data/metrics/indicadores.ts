@@ -142,6 +142,11 @@ export function fila(views: LeadView[], agora: number, p: Parametros): ItemFila[
     });
 }
 
+/** Pede ação agora: sem contato depois do prazo ou parado (alerta vermelho). */
+export function urgente(x: ItemFila): boolean {
+  return x.alertas[0].cor === 'vermelho';
+}
+
 export function contarAlertas(itens: ItemFila[]): Record<TipoAlerta, number> {
   const c: Record<TipoAlerta, number> = {
     sla_estourado: 0, parado: 0, prazo_correndo: 0, demo_sem_desfecho: 0, atencao: 0, passo_vencido: 0, sem_proximo_passo: 0,

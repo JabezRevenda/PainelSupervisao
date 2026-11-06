@@ -112,7 +112,8 @@ export function PainelProvider({ children }: { children: ReactNode }) {
   }, [config.tema]);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', config.tema === 'dark');
+    // O painel segue um visual claro único (referência aprovada pela supervisão).
+    document.documentElement.classList.remove('dark');
   }, [config.tema]);
 
   // Recalcula a cada minuto (o mesmo ritmo previsto para a réplica)

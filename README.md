@@ -21,20 +21,20 @@ Outros comandos:
 
 ## Telas
 
-| Tela | Pergunta que responde |
-| --- | --- |
-| Visão geral | Como está o time agora? Parados, sem contato, meta do mês, SLA, ranking |
-| Kanban de hoje | O quadro do CRM, com as mesmas etapas e cartões, mostrando os atrasos de cada lead |
-| Fila de risco | Qual lead está sendo esquecido? Cronômetro do prazo de 1 hora e ficha do lead |
-| Agenda de demos | As demos estão acontecendo e têm desfecho? |
-| Performance | Quem segue o processo e quem converte? Mapa de horários de cada vendedor |
-| Funil e conversão | Onde os leads travam e quanto tempo levam em cada etapa? |
-| Marketing e origem | O lead é ruim ou foi mal atendido? Conversão dentro e fora do prazo por canal |
-| Perdas | Por que perdemos? Quanto vai para Resgate e para Limbo, e o que saiu sem nenhuma interação |
-| Metas e OKRs | Vamos bater o mês e o trimestre? |
-| Configurações | Prazos, horário comercial, metas, alertas e alvos dos OKRs |
+Cada tela responde a uma pergunta. O título já traz a resposta, com o número que importa em rosa; abaixo vêm poucos blocos (no máximo seis), e todo número vem com contexto: meta, período anterior ou média do time.
 
-Clique em qualquer lead para abrir a ficha com a linha do tempo. O tema claro é o padrão; o escuro fica no botão do topo.
+| Menu | Pergunta que responde |
+| --- | --- |
+| Hoje | O que pede ação agora? Parados, sem contato, 1º contato no prazo, meta do mês, vendedores e demos do dia |
+| Kanban | O quadro do CRM, com as mesmas etapas e cartões, mostrando os atrasos de cada lead |
+| Agenda | As demos de hoje estão acontecendo e têm desfecho? |
+| Time | Quem segue o processo e quem converte? Ranking por indicador, detalhe do vendedor e processo × resultado |
+| Análises | Funil (onde os leads travam), Origem do lead (é ruim ou foi mal atendido?) e Perdas (por que e para onde vão) |
+| Metas | Vamos bater o mês e o trimestre? |
+| Fila de risco (botão preto no topo) | Qual lead está sendo esquecido? O número no botão é o de leads que pedem ação agora |
+| Configurações (engrenagem) | Prazos, horário comercial, metas, alertas e alvos dos OKRs |
+
+Clique em qualquer lead para abrir a ficha com a linha do tempo. Os endereços antigos (`/performance`, `/funil`, `/marketing`, `/perdas`) levam para as telas novas.
 
 ## Etapas do CRM
 
@@ -83,12 +83,12 @@ src/
   state/painel.tsx      configurações, relógio (recalcula a cada minuto) e carga dos dados
   components/
     ui/                 componentes do shadcn/ui (gerados pelo CLI, não editar à mão)
-    kit.tsx             cabeçalho de página, cartão de indicador, avatar com iniciais
+    kit.tsx             título da tela, cartões, número, medidor, pílulas e botões de seta
     crm.tsx             cartão de lead e etiquetas no estilo do CRM
-    motion.tsx          entradas em cascata, números que contam, barras que crescem
-    charts.tsx          linha, meia-lua da meta, anel e colunas empilhadas
-  layout/               menu lateral, barra superior e ficha do lead
-  pages/                as 10 telas
+    motion.tsx          entradas em cascata e números que contam
+    wave.tsx            a textura de onda dos cartões de destaque
+  layout/               menu em pílulas no topo e ficha do lead
+  pages/                as telas (Análises junta Funil, Marketing e Perdas em abas)
 db/schema.sql           tabelas da réplica e gatilho dos históricos (PostgreSQL)
 ```
 
@@ -109,6 +109,7 @@ Os dois históricos (atribuição e etapas) não existem hoje no CRM e são a **
 
 ## Interface
 
-- **Componentes:** [shadcn/ui](https://ui.shadcn.com) (Radix + Tailwind CSS 4), React 19, ícones Lucide e fonte Geist. Para adicionar um componente: `npx shadcn@latest add <nome>`.
-- **Cores:** as variáveis do shadcn em `src/index.css`, com o rosa Revenda Mais como cor primária. Logos em `public/brand/` (versão branca para o tema escuro).
-- **Movimento:** [Motion](https://motion.dev). As telas entram em cascata, os números contam até o valor, as barras crescem e, no Kanban, o cartão desliza para a coluna nova quando o lead muda de etapa. Quem ativa "reduzir movimento" no sistema vê tudo parado.
+- **Visual:** fundo cinza-claro, cartões brancos com borda fina, um cartão **rosa** para o que pede ação e um **preto** para a meta. Rosa sempre quer dizer problema ou ação; preto, meta ou destaque neutro; cinza, o resto. Títulos grandes em Inter Tight, menu e filtros em pílulas, e a textura de onda só nos cartões de destaque.
+- **Peças:** `src/components/kit.tsx` (título da tela, cartão, número, medidor com meta, pílulas, botões de seta) e `src/components/wave.tsx` (a onda). Formulários e a ficha do lead usam [shadcn/ui](https://ui.shadcn.com) (Radix + Tailwind CSS 4) com React 19 e ícones Lucide.
+- **Cores:** variáveis em `src/index.css`, com o rosa Revenda Mais como cor primária. Logo em `public/brand/`.
+- **Movimento:** [Motion](https://motion.dev). As telas entram em cascata, os números contam até o valor, as barras crescem, o destaque das pílulas desliza, a onda deriva devagar e, no Kanban, o cartão desliza para a coluna nova quando o lead muda de etapa. Quem ativa "reduzir movimento" no sistema vê tudo parado.
