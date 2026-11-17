@@ -413,3 +413,98 @@ export function conversaoNaMesmaIdade(meses: MesPlanilha[], leadsDoMes: (c: stri
     return { chave: m.chave, nome: m.nome, leads: ls.length, ganhosAteDias: ganhos, conversao: pct(ganhos, ls.length), completo: maisNovo > 0 && (agora - maisNovo) / DAY >= dias };
   });
 }
+
+// ---------- mês × mês anterior, até o mesmo dia ----------
+
+export type MetricaRitmo = 'leads' | 'agendadas' | 'realizadas' | 'ganhos';
+
+export const METRICA_RITMO: Record<MetricaRitmo, string> = {
+  leads: 'Leads recebidos',
+  agendadas: 'Reuniões agendadas',
+  realizadas: 'Reuniões realizadas',
+  ganhos: 'Ganhos',
+};
+
+export function diasNoMes(chave: string): number {
+  const [y, m] = chave.split('-').map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
+}
+
+function diaDe(iso: string): number {
+  return Number(iso.slice(8, 10));
+}
+
+export interface SerieRitmo {
+  chave: string;
+  /** Total acumulado no fim de cada dia (índice 0 = dia 1) */
+  acumulado: number[];
+  /** Último dia com dado neste mês */
+  ultimoDia: number;
+}
+
+/**
+ * Série acumulada de um mês, dia a dia.
+ *  - leads: o "Qnt. de Leads" do dia a dia da planilha (não separa por equipe);
+ *  - agendadas e realizadas: pela data do agendamento (realizada = status de hoje);
+ *  - ganhos: pela data do ganho quando a planilha tiver a coluna; sem ela, pela
+ *    data do agendamento (e a comparação não é justa: o mês anterior teve mais tempo).
+ */
+export function serieRitmo(mes: MesPlanilha, ls: LeadP[], todos: LeadP[], metrica: MetricaRitmo, comDataGanho: boolean): SerieRitmo {
+  const n = diasNoMes(mes.chave);
+  const porDia = Array<number>(n).fill(0);
+  let ultimoDia = 0;
+  if (metrica === 'leads') {
+    for (const d of mes.diario) {
+      if (d.leads === null) continue;
+      porDia[diaDe(d.data) - 1] += d.leads;
+      ultimoDia = Math.max(ultimoDia, diaDe(d.data));
+    }
+  } else if (metrica === 'ganhos' && comDataGanho) {
+    for (const l of todos) {
+      if (l.resultado !== 'ganho' || !l.dataGanho || !l.dataGanho.startsWith(mes.chave)) continue;
+      porDia[diaDe(l.dataGanho) - 1]++;
+    }
+    for (const l of ls) if (l.data) ultimoDia = Math.max(ultimoDia, diaDe(l.data));
+  } else {
+    for (const l of ls) {
+      if (!l.data) continue;
+      ultimoDia = Math.max(ultimoDia, diaDe(l.data));
+      if (metrica === 'realizadas' && l.realizada !== 'sim') continue;
+      if (metrica === 'ganhos' && l.resultado !== 'ganho') continue;
+      porDia[diaDe(l.data) - 1]++;
+    }
+  }
+  const acumulado: number[] = [];
+  porDia.reduce((s, x, i) => (acumulado[i] = s + x), 0);
+  return { chave: mes.chave, acumulado, ultimoDia };
+}
+
+export interface ComparativoRitmo {
+  metrica: MetricaRitmo;
+  /** Dia do mês usado nos dois meses */
+  dia: number;
+  atual: number;
+  anterior: number;
+  variacao: number | null;
+  serieAtual: SerieRitmo;
+  serieAnterior: SerieRitmo;
+  /** false para ganhos sem a data do ganho na planilha */
+  justo: boolean;
+}
+
+/** Mês selecionado × mês anterior, até o mesmo dia (o último dia com dado no mês selecionado). */
+export function compararRitmo(
+  atual: { mes: MesPlanilha; ls: LeadP[] },
+  anterior: { mes: MesPlanilha; ls: LeadP[] },
+  todos: LeadP[],
+  metrica: MetricaRitmo,
+): ComparativoRitmo {
+  const comData = temDataGanho(todos);
+  const sA = serieRitmo(atual.mes, atual.ls, todos, metrica, comData);
+  const sB = serieRitmo(anterior.mes, anterior.ls, todos, metrica, comData);
+  const dia = Math.max(0, Math.min(sA.ultimoDia, diasNoMes(atual.mes.chave)));
+  const valor = (s: SerieRitmo) => (dia === 0 ? 0 : s.acumulado[Math.min(dia, s.acumulado.length) - 1]);
+  const a = valor(sA);
+  const b = valor(sB);
+  return { metrica, dia, atual: a, anterior: b, variacao: b > 0 ? ((a - b) / b) * 100 : null, serieAtual: sA, serieAnterior: sB, justo: metrica !== 'ganhos' || comData };
+}

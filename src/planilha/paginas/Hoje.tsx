@@ -6,7 +6,7 @@ import { EASE, Page, Stagger } from '@/components/motion';
 import { fmtLongDate, minutesOfDay } from '@/data/time';
 import { cn } from '@/lib/utils';
 import { nomeCurto, usePlanilha } from '../estado';
-import { type Equipe, EQUIPE_LABEL, equipeDe, funilDoMes, metaDoMes, porVendedor, resumir } from '../modelo';
+import { compararRitmo, type Equipe, EQUIPE_LABEL, equipeDe, funilDoMes, METRICA_RITMO, type MetricaRitmo, metaDoMes, porVendedor, resumir } from '../modelo';
 import { AvisoPlanilha } from '../pecas';
 
 function saudacao(agora: number) {
@@ -21,7 +21,7 @@ function contarPor(ls: { vendedor: string }[]) {
 }
 
 export function Hoje() {
-  const { mes, leads, anterior, agora, metaPadrao } = usePlanilha();
+  const { mes, leads, anterior, agora, metaPadrao, todos } = usePlanilha();
   const navigate = useNavigate();
   const d = useMemo(() => {
     const r = resumir(leads);
@@ -31,6 +31,10 @@ export function Hoje() {
     return { r, rAnt, semDesfecho, faltas, vend: porVendedor(leads), funil: funilDoMes(mes, leads), meta: metaDoMes(mes, leads, anterior, agora, metaPadrao) };
   }, [leads, anterior, mes, agora, metaPadrao]);
   const { r, rAnt, semDesfecho, faltas, vend, funil, meta } = d;
+  const ritmo = useMemo(
+    () => (anterior ? (['leads', 'agendadas', 'realizadas'] as MetricaRitmo[]).map((m) => compararRitmo({ mes, ls: leads }, anterior, todos, m)) : []),
+    [mes, leads, anterior, todos],
+  );
   const nSem = semDesfecho.reduce((s, x) => s + x[1], 0);
   const nFaltas = faltas.reduce((s, x) => s + x[1], 0);
   const nomeMes = nomeCurto(mes);
@@ -112,6 +116,29 @@ export function Hoje() {
           />
         </Bloco>
       </Stagger>
+
+      {ritmo.length > 0 && anterior && (
+        <Bloco titulo={`${nomeMes[0].toUpperCase() + nomeMes.slice(1)} × ${nomeCurto(anterior.mes)}, até o mesmo dia`} acao={<ArrowLink to="/funil/ritmo" label="Ver comparativo" />}>
+          <div className="grid gap-x-8 gap-y-5 sm:grid-cols-3">
+            {ritmo.map((c) => (
+              <div key={c.metrica} className="flex flex-col gap-1">
+                <span className="text-sm text-muted-foreground">
+                  {METRICA_RITMO[c.metrica]} · até o dia {c.dia}
+                </span>
+                <span className="flex items-baseline gap-2">
+                  <span className="display num text-[34px] leading-none">{c.atual}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {nomeCurto(anterior.mes)}: {c.anterior}
+                  </span>
+                  <span className={cn('num text-sm font-medium', c.variacao !== null && c.variacao < 0 && 'text-primary')}>
+                    {c.variacao === null ? '' : `${c.variacao >= 0 ? '+' : '−'}${Math.abs(Math.round(c.variacao))}%`}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </Bloco>
+      )}
 
       <Stagger className="grid gap-4 lg:grid-cols-3 lg:items-start">
         <Bloco titulo={`Vendedores em ${nomeMes}`} acao={<ArrowLink to="/time" label="Abrir Time" />} className="lg:col-span-2">

@@ -5,16 +5,16 @@ import { Bloco, Contexto, fmtNum, fmtPct, Hl, Intro, Numero, Pilulas } from '@/c
 import { AnimatedNumber, EASE, Page, Stagger } from '@/components/motion';
 import { cn } from '@/lib/utils';
 import { nomeCurto, usePlanilha } from '../estado';
-import { conversaoNaMesmaIdade, conversaoPorIdade, type Equipe, EQUIPE_LABEL, fmtDia, funilDoMes, idadeDias, pct, porCanal, resumir, temDataGanho } from '../modelo';
+import { type ComparativoRitmo, compararRitmo, METRICA_RITMO, type MetricaRitmo, conversaoNaMesmaIdade, conversaoPorIdade, type Equipe, EQUIPE_LABEL, fmtDia, funilDoMes, idadeDias, pct, porCanal, resumir, temDataGanho } from '../modelo';
 import { OrigemP } from '../pecas';
 
-type Aba = 'etapas' | 'idade' | 'origem';
+type Aba = 'etapas' | 'ritmo' | 'idade' | 'origem';
 type FiltroEquipe = Equipe | 'todos';
 
 export function FunilP() {
   const { aba } = useParams();
   const navigate = useNavigate();
-  if (aba !== 'etapas' && aba !== 'idade' && aba !== 'origem') return <Navigate to="/funil/etapas" replace />;
+  if (aba !== 'etapas' && aba !== 'ritmo' && aba !== 'idade' && aba !== 'origem') return <Navigate to="/funil/etapas" replace />;
   const topo = (
     <Pilulas
       id="aba-funil"
@@ -23,12 +23,13 @@ export function FunilP() {
       onChange={(a) => navigate(`/funil/${a}`)}
       options={[
         ['etapas', 'Funil'],
+        ['ritmo', 'Mês × mês anterior'],
         ['idade', 'Idade do lead'],
         ['origem', 'Origem do lead'],
       ]}
     />
   );
-  return aba === 'etapas' ? <Etapas topo={topo} /> : aba === 'idade' ? <Idade topo={topo} /> : <Origem topo={topo} />;
+  return aba === 'etapas' ? <Etapas topo={topo} /> : aba === 'ritmo' ? <Ritmo topo={topo} /> : aba === 'idade' ? <Idade topo={topo} /> : <Origem topo={topo} />;
 }
 
 function Etapas({ topo }: { topo: ReactNode }) {
@@ -304,7 +305,7 @@ function Idade({ topo }: { topo: ReactNode }) {
         }
         aside={
           <>
-            Idade = dias desde o agendamento da reunião até hoje.{' '}
+            Serve para saber se o mês está ruim de verdade ou se os leads dele só são novos. Idade = dias desde o agendamento da reunião até hoje.{' '}
             {atual && atual.min !== null && `Os leads de ${nomeCurto(mes)} têm de ${atual.min} a ${atual.max} dias, então a conversão do mês ainda vai subir.`}
           </>
         }
@@ -407,5 +408,172 @@ function Idade({ topo }: { topo: ReactNode }) {
         <Contexto className="text-muted-foreground opacity-100" itens={['conversão = ganhos ÷ leads recebidos pelos vendedores', 'quanto mais leads em aberto, mais o mês ainda pode subir']} />
       </Bloco>
     </Page>
+  );
+}
+
+const METRICAS: MetricaRitmo[] = ['leads', 'agendadas', 'realizadas', 'ganhos'];
+
+function fmtVar(v: number | null) {
+  if (v === null) return '—';
+  return `${v >= 0 ? '+' : '−'}${fmtNum(Math.abs(v), 0)}%`;
+}
+
+/** Mês selecionado × mês anterior, até o mesmo dia do mês. */
+function Ritmo({ topo }: { topo: ReactNode }) {
+  const { mes, leads, anterior, todos } = usePlanilha();
+  const [equipe, setEquipe] = useState<FiltroEquipe>('todos');
+  const [metrica, setMetrica] = useState<MetricaRitmo>('agendadas');
+  const cmps = useMemo(() => {
+    if (!anterior) return null;
+    const f = (ls: typeof leads) => (equipe === 'todos' ? ls : ls.filter((l) => l.equipe === equipe));
+    const base = f(todos);
+    return Object.fromEntries(METRICAS.map((m) => [m, compararRitmo({ mes, ls: f(leads) }, { mes: anterior.mes, ls: f(anterior.ls) }, base, m)])) as Record<MetricaRitmo, ComparativoRitmo>;
+  }, [mes, leads, anterior, todos, equipe]);
+
+  if (!anterior || !cmps) {
+    return (
+      <Page className="gap-8">
+        <Intro top={topo} tag="Mês × mês anterior" title="Este é o primeiro mês da planilha: não há mês anterior para comparar." />
+      </Page>
+    );
+  }
+  const ag = cmps.agendadas;
+  const nomeAnt = nomeCurto(anterior.mes);
+  const sel = cmps[metrica];
+
+  return (
+    <Page className="gap-8">
+      <Intro
+        top={topo}
+        tag={`Mês × mês anterior · ${nomeCurto(mes)} e ${nomeAnt} até o dia ${ag.dia}`}
+        title={
+          <>
+            Até o dia {ag.dia}, {nomeCurto(mes)} tem {ag.atual} reuniões agendadas. Em {nomeAnt}, no mesmo ponto, eram {ag.anterior}:{' '}
+            <Hl>{fmtVar(ag.variacao)}</Hl>.
+          </>
+        }
+        aside="Compara o mês com o anterior no mesmo dia do mês, para saber se estamos à frente ou atrás enquanto o mês ainda está acontecendo."
+        action={
+          <Pilulas
+            id="equipe-ritmo"
+            label="Equipe"
+            value={equipe}
+            onChange={setEquipe}
+            options={[
+              ['todos', 'Todos'],
+              ['interno', 'Internos'],
+              ['externo', 'Externos'],
+            ]}
+          />
+        }
+      />
+
+      <Stagger className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {METRICAS.map((m) => {
+          const c = cmps[m];
+          const pior = c.variacao !== null && c.variacao < 0;
+          return (
+            <Bloco key={m} titulo={METRICA_RITMO[m]} className={cn('cursor-pointer transition-shadow hover:shadow-md', metrica === m && 'ring-2 ring-ink')}>
+              <button type="button" onClick={() => setMetrica(m)} className="flex flex-1 flex-col gap-3 text-left" aria-pressed={metrica === m}>
+                <div className="flex items-baseline gap-2">
+                  <span className="display num text-[44px] leading-none">{c.atual}</span>
+                  <span className="text-sm text-muted-foreground">
+                    × {c.anterior} em {nomeAnt}
+                  </span>
+                </div>
+                <span className={cn('num text-sm font-medium', c.justo && pior && 'text-primary')}>
+                  {c.justo ? `${fmtVar(c.variacao)} até o dia ${c.dia}` : 'sem comparação justa'}
+                </span>
+                <span className="text-xs leading-relaxed text-muted-foreground">
+                  {m === 'leads'
+                    ? `${equipe === 'todos' ? '' : 'total da empresa (não separa por equipe) · '}dia a dia preenchido até o dia ${c.dia}`
+                    : m === 'ganhos' && !c.justo
+                      ? `${nomeAnt} teve mais tempo para fechar. Com a coluna DATA GANHO na planilha, essa comparação fica certa.`
+                      : m === 'realizadas'
+                        ? 'das reuniões agendadas até o dia, pelo status de hoje'
+                        : 'pela data do agendamento'}
+                </span>
+              </button>
+            </Bloco>
+          );
+        })}
+      </Stagger>
+
+      <Bloco titulo={`${METRICA_RITMO[metrica]} · acumulado dia a dia`}>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="h-0.5 w-4 rounded-full bg-ink" /> {nomeCurto(mes)}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="w-4 border-t-2 border-dashed border-ink/35" /> {nomeAnt}
+          </span>
+          <span>Clique nos cartões acima para trocar o indicador.</span>
+        </div>
+        <GraficoRitmo c={sel} nomeAtual={nomeCurto(mes)} nomeAnterior={nomeAnt} />
+      </Bloco>
+    </Page>
+  );
+}
+
+/** Duas linhas acumuladas (mês e mês anterior), na mesma escala, com o dia de corte marcado. */
+function GraficoRitmo({ c, nomeAtual, nomeAnterior }: { c: ComparativoRitmo; nomeAtual: string; nomeAnterior: string }) {
+  const W = 760;
+  const H = 260;
+  const m = { t: 16, r: 64, b: 28, l: 40 };
+  const dias = Math.max(c.serieAtual.acumulado.length, c.serieAnterior.acumulado.length);
+  const atual = c.serieAtual.acumulado.slice(0, c.dia);
+  const ant = c.serieAnterior.acumulado;
+  const maxV = Math.max(1, ...ant, ...atual);
+  const passo = maxV <= 10 ? 2 : maxV <= 50 ? 10 : maxV <= 100 ? 20 : maxV <= 250 ? 50 : 100;
+  const topoY = Math.ceil(maxV / passo) * passo;
+  const x = (dia: number) => m.l + ((dia - 1) / Math.max(1, dias - 1)) * (W - m.l - m.r);
+  const y = (v: number) => H - m.b - (v / topoY) * (H - m.t - m.b);
+  const linha = (vs: number[]) => vs.map((v, i) => `${i ? 'L' : 'M'}${x(i + 1).toFixed(1)} ${y(v).toFixed(1)}`).join('');
+  const ticks: number[] = [];
+  for (let v = 0; v <= topoY; v += passo) ticks.push(v);
+  const marcasX = [1, 5, 10, 15, 20, 25, dias].filter((d, i, a) => d <= dias && a.indexOf(d) === i);
+  const valAnt = c.dia ? ant[Math.min(c.dia, ant.length) - 1] : 0;
+  const valAtual = atual.length ? atual[atual.length - 1] : 0;
+  const separar = Math.abs(y(valAnt) - y(valAtual)) < 14;
+  return (
+    <div className="overflow-x-auto">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full min-w-[520px]" role="img" aria-label={`${METRICA_RITMO[c.metrica]}: ${nomeAtual} ${c.atual}, ${nomeAnterior} ${c.anterior} até o dia ${c.dia}`}>
+        {ticks.map((v) => (
+          <g key={v}>
+            <line x1={m.l} x2={W - m.r} y1={y(v)} y2={y(v)} className="stroke-ink/[0.07]" strokeWidth={1} />
+            <text x={m.l - 8} y={y(v) + 4} textAnchor="end" className="fill-muted-foreground text-[11px]">
+              {v}
+            </text>
+          </g>
+        ))}
+        {marcasX.map((d) => (
+          <text key={d} x={x(d)} y={H - 8} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+            dia {d}
+          </text>
+        ))}
+        {c.dia > 0 && (
+          <g>
+            <line x1={x(c.dia)} x2={x(c.dia)} y1={m.t} y2={H - m.b} className="stroke-primary" strokeWidth={1} strokeDasharray="3 3" />
+            <circle cx={x(c.dia)} cy={y(valAnt)} r={3.5} className="fill-card stroke-ink/40" strokeWidth={1.5} />
+          </g>
+        )}
+        <path d={linha(ant)} fill="none" className="stroke-ink/35" strokeWidth={2} strokeDasharray="5 4" />
+        <motion.path d={linha(atual)} fill="none" className="stroke-ink" strokeWidth={2.5} strokeLinejoin="round" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.9, ease: EASE }} />
+        {atual.length > 0 && <circle cx={x(c.dia)} cy={y(valAtual)} r={4.5} className="fill-ink" />}
+        {atual.length > 0 && (
+          <text x={x(c.dia) + 8} y={y(valAtual) + (separar && valAtual < valAnt ? 14 : 4)} className="fill-foreground text-[12px] font-medium">
+            {valAtual}
+          </text>
+        )}
+        {c.dia > 0 && (
+          <text x={x(c.dia) - 8} y={y(valAnt) + (separar && valAnt <= valAtual ? 14 : -6)} textAnchor="end" className="fill-muted-foreground text-[12px]">
+            {nomeAnterior.slice(0, 3)}: {valAnt}
+          </text>
+        )}
+        <text x={x(ant.length) + 6} y={y(ant[ant.length - 1] ?? 0) + 4} className="fill-muted-foreground text-[11px]">
+          {nomeAnterior.slice(0, 3)}: {ant[ant.length - 1] ?? 0}
+        </text>
+      </svg>
+    </div>
   );
 }
