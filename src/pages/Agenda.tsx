@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { Origem } from '@/components/crm';
-import { ArrowLink, Bloco, Capsule, Contexto, Hl, Intro, Medidor, Numero, Pilulas, Pill } from '@/components/kit';
+import { ArrowLink, Bloco, Contexto, Hl, Intro, Medidor, Numero, Pilulas } from '@/components/kit';
 import { EASE, Page, Stagger } from '@/components/motion';
 import type { LeadView } from '@/data/metrics/estado';
 import { resumoDemos } from '@/data/metrics/indicadores';
@@ -64,11 +64,11 @@ export function Agenda() {
         title={
           semDesfechoHoje > 0 ? (
             <>
-              Hoje são <Hl>{hojeLista.length} demos</Hl>. <Pill>{semDesfechoHoje}</Pill> <Capsule /> {semDesfechoHoje === 1 ? 'está' : 'estão'} sem desfecho.
+              Hoje são <Hl>{hojeLista.length} demos</Hl>. {semDesfechoHoje} {semDesfechoHoje === 1 ? 'está' : 'estão'} sem desfecho.
             </>
           ) : (
             <>
-              Hoje são <Hl>{hojeLista.length} demos</Hl>, todas com <Pill>desfecho</Pill> <Capsule /> registrado.
+              Hoje são <Hl>{hojeLista.length} demos</Hl>, todas com desfecho registrado.
             </>
           )
         }

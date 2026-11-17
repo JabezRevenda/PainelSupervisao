@@ -4,3 +4,5 @@ dist
 .DS_Store
 .vite
 coverage
+src/planilha/dados.json
+dist-planilha

@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Bloco, Capsule, Contexto, Dot, fmtNum, fmtPct, Hl, Intro, NameAvatar, Pilulas, Pill } from '@/components/kit';
+import { Bloco, Contexto, Dot, fmtNum, fmtPct, Hl, Intro, NameAvatar, Pilulas } from '@/components/kit';
 import { EASE, Page, SPRING, Stagger } from '@/components/motion';
 import { carteira, fechamento, mapaAtividade, resumoAtendimento, resumoDemos } from '@/data/metrics/indicadores';
 import { type LinhaVendedor, linhasVendedores, STATUS_VENDEDOR, type StatusVendedor } from '@/data/metrics/vendedores';
@@ -81,11 +81,11 @@ export function Performance() {
               <Hl>
                 {criticos.length} {criticos.length === 1 ? 'vendedor faz' : 'vendedores fazem'}
               </Hl>{' '}
-              menos da metade do 1º contato no <Pill>prazo</Pill> <Capsule />.
+              menos da metade do 1º contato no prazo.
             </>
           ) : (
             <>
-              Todo o time faz o 1º contato no <Pill>prazo</Pill> <Capsule /> na maioria dos leads.
+              Todo o time faz o 1º contato no prazo na maioria dos leads.
             </>
           )
         }

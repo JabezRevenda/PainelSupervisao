@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { Cta, Hl, Intro, NameAvatar, Pill } from '@/components/kit';
+import { Cta, Hl, Intro, NameAvatar } from '@/components/kit';
 import { Page, Reveal, Stagger, itemVariants } from '@/components/motion';
 import { META_PADRAO_POR_VENDEDOR } from '@/data/params';
 import type { Parametros } from '@/data/types';
@@ -78,7 +78,7 @@ export function Configuracoes() {
         tag="Configurações · só a supervisão edita"
         title={
           <>
-            As <Hl>regras</Hl> do painel mudam aqui, sem <Pill>depender</Pill> da TI.
+            As <Hl>regras</Hl> do painel mudam aqui, sem depender da TI.
           </>
         }
         aside="Toda mudança vale na hora para todas as telas. Neste protótipo ela fica salva no navegador; com a réplica do CRM, fica na tabela de parâmetros."

@@ -4,7 +4,7 @@ import { type ReactNode, type Ref, useMemo, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Etiqueta, etiquetaDaEtapa, LeadCard, Origem, tempoCurto } from '@/components/crm';
-import { Capsule, Hl, Intro, NameAvatar, Pill } from '@/components/kit';
+import { Hl, Intro, NameAvatar } from '@/components/kit';
 import { EASE, Page, Reveal, SPRING } from '@/components/motion';
 import { alertas, type Alerta, type LeadView } from '@/data/metrics/estado';
 import { carteira } from '@/data/metrics/indicadores';
@@ -123,7 +123,7 @@ export function Kanban() {
         tag="Kanban · as etapas do CRM"
         title={
           <>
-            <Hl>{cart.abertos} leads</Hl> com os vendedores. <Pill>{cart.parados}</Pill> <Capsule /> {cart.parados === 1 ? 'está parado' : 'estão parados'}.
+            <Hl>{cart.abertos} leads</Hl> com os vendedores. {cart.parados} {cart.parados === 1 ? 'está parado' : 'estão parados'}.
           </>
         }
         aside={

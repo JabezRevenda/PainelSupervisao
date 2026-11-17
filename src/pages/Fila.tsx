@@ -2,7 +2,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { type ReactNode, useMemo, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Etiqueta, etiquetaDoAlerta, Origem } from '@/components/crm';
-import { ArrowLink, Bloco, Capsule, Contexto, Cta, Dot, Hl, Intro, Pilulas, Pill } from '@/components/kit';
+import { ArrowLink, Bloco, Contexto, Cta, Dot, Hl, Intro, Pilulas } from '@/components/kit';
 import { EASE, Page, Stagger } from '@/components/motion';
 import { ALERTA_INFO, type TipoAlerta } from '@/data/metrics/estado';
 import { fila, urgente } from '@/data/metrics/indicadores';
@@ -50,7 +50,7 @@ export function Fila() {
         tag="Fila de risco · atualiza a cada minuto"
         title={
           <>
-            <Hl>{urgentes} leads</Hl> pedem ação agora. Outros <Pill>{itens.length - urgentes}</Pill> <Capsule /> pedem atenção hoje.
+            <Hl>{urgentes} leads</Hl> pedem ação agora. Outros {itens.length - urgentes} pedem atenção hoje.
           </>
         }
         aside="Primeiro quem está sem contato depois do prazo de 1 hora útil, depois os parados há mais de 48h. Clique no lead para ver a linha do tempo."

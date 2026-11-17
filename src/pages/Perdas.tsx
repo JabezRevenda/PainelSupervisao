@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { type ReactNode, useMemo } from 'react';
-import { Bloco, Capsule, Contexto, Dot, fmtPct, Hl, Intro, NameAvatar, Pill } from '@/components/kit';
+import { Bloco, Contexto, Dot, fmtPct, Hl, Intro, NameAvatar } from '@/components/kit';
 import { EASE, Page, Stagger } from '@/components/motion';
 import { perdas, resumoAtendimento } from '@/data/metrics/indicadores';
 import { DAY, fmtDate } from '@/data/time';
@@ -40,7 +40,7 @@ export function Perdas({ dias, topo }: { dias: number; topo: ReactNode }) {
         tag={`Perdas · de ${fmtDate(ini)} a ${fmtDate(agora)}`}
         title={
           <>
-            <Hl>{r.total} leads</Hl> perdidos. <Pill>{r.semInteracao.length}</Pill> <Capsule /> {r.semInteracao.length === 1 ? 'saiu' : 'saíram'} sem nenhuma interação.
+            <Hl>{r.total} leads</Hl> perdidos. {r.semInteracao.length} {r.semInteracao.length === 1 ? 'saiu' : 'saíram'} sem nenhuma interação.
           </>
         }
         aside={

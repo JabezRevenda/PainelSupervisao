@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { type ReactNode, useMemo } from 'react';
-import { Bloco, Capsule, Contexto, fmtNum, fmtPct, Hl, Intro, Numero, Pill } from '@/components/kit';
+import { Bloco, Contexto, fmtNum, fmtPct, Hl, Intro, Numero } from '@/components/kit';
 import { AnimatedNumber, EASE, Page, Stagger } from '@/components/motion';
 import { Wave } from '@/components/wave';
 import { fechamento, funil } from '@/data/metrics/indicadores';
@@ -37,7 +37,7 @@ export function Funil({ dias, topo }: { dias: number; topo: ReactNode }) {
         tag={`Funil · leads recebidos de ${fmtDate(ini)} a ${fmtDate(agora)}`}
         title={
           <>
-            A maior perda está entre <Pill>{FUNIL_LABEL[etapas[idxPior - 1].etapa]}</Pill> <Capsule /> e {FUNIL_LABEL[pior.etapa]}: <Hl>{fmtPct(100 - (pior.conversao ?? 0))}</Hl> não
+            A maior perda está entre {FUNIL_LABEL[etapas[idxPior - 1].etapa]} e {FUNIL_LABEL[pior.etapa]}: <Hl>{fmtPct(100 - (pior.conversao ?? 0))}</Hl> não
             avançam.
           </>
         }

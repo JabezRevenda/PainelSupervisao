@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { type ReactNode, useMemo } from 'react';
 import { Origem } from '@/components/crm';
-import { Bloco, Capsule, Contexto, Dot, fmtNum, fmtPct, Hl, Intro, Pill } from '@/components/kit';
+import { Bloco, Contexto, Dot, fmtNum, fmtPct, Hl, Intro } from '@/components/kit';
 import { EASE, Page, Stagger } from '@/components/motion';
 import { efeitoSla, porCanal } from '@/data/metrics/indicadores';
 import { DAY, fmtDate } from '@/data/time';
@@ -32,7 +32,7 @@ export function Marketing({ dias, topo }: { dias: number; topo: ReactNode }) {
         tag={`Origem do lead · recebidos de ${fmtDate(ini)} a ${fmtDate(agora)}`}
         title={
           <>
-            Quem tem contato em até 1 hora converte <Hl>{efeito.multiplicador ? `${fmtNum(efeito.multiplicador, 1)}×` : '—'}</Hl> <Pill>mais</Pill> <Capsule />.
+            Quem tem contato em até 1 hora converte <Hl>{efeito.multiplicador ? `${fmtNum(efeito.multiplicador, 1)}×` : '—'}</Hl> mais.
           </>
         }
         aside={

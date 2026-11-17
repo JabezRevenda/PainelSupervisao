@@ -1,6 +1,6 @@
 import { motion } from 'motion/react';
 import { useMemo } from 'react';
-import { Bloco, Capsule, Contexto, Cta, fmtNum, fmtPct, Hl, Intro, Medidor, NameAvatar, Numero, Pill } from '@/components/kit';
+import { Bloco, Contexto, Cta, fmtNum, fmtPct, Hl, Intro, Medidor, NameAvatar, Numero } from '@/components/kit';
 import { EASE, Page, Stagger } from '@/components/motion';
 import { metasDoMes } from '@/data/metrics/indicadores';
 import { progresso, valorIndicador } from '@/data/metrics/okr';
@@ -61,11 +61,11 @@ export function Metas() {
         title={
           mes.faltam > 0 ? (
             <>
-              Faltam <Hl>{mes.faltam} cadastros</Hl> para a meta. No ritmo atual, chegamos a <Pill>{mes.projecao}</Pill> <Capsule />.
+              Faltam <Hl>{mes.faltam} cadastros</Hl> para a meta. No ritmo atual, chegamos a {mes.projecao}.
             </>
           ) : (
             <>
-              A meta de {mesNome} já foi <Pill>batida</Pill> <Capsule />: <Hl>{mes.ganhos} cadastros</Hl>.
+              A meta de {mesNome} já foi batida: <Hl>{mes.ganhos} cadastros</Hl>.
             </>
           )
         }

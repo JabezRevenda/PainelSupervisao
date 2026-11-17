@@ -1,7 +1,7 @@
 import { motion } from 'motion/react';
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLink, Bloco, Capsule, Chip, Contexto, Cta, Dot, fmtNum, fmtPct, Hl, Intro, Medidor, NameAvatar, Numero, Pill } from '@/components/kit';
+import { ArrowLink, Bloco, Chip, Contexto, Cta, Dot, fmtNum, fmtPct, Hl, Intro, Medidor, NameAvatar, Numero } from '@/components/kit';
 import { EASE, Page, Stagger } from '@/components/motion';
 import { carteira, fila, metasDoMes, resumoAtendimento, resumoDemos, urgente } from '@/data/metrics/indicadores';
 import { linhasVendedores, STATUS_VENDEDOR } from '@/data/metrics/vendedores';
@@ -64,11 +64,11 @@ export function VisaoGeral() {
         title={
           acao > 0 ? (
             <>
-              {saudacao(agora)}. <Hl>{acao} leads</Hl> pedem <Pill>ação</Pill> <Capsule /> agora.
+              {saudacao(agora)}. <Hl>{acao} leads</Hl> pedem ação agora.
             </>
           ) : (
             <>
-              {saudacao(agora)}. Nenhum lead <Pill>esquecido</Pill> <Capsule /> agora.
+              {saudacao(agora)}. Nenhum lead esquecido agora.
             </>
           )
         }

@@ -1,7 +1,8 @@
 /**
  * Peças visuais do painel, no estilo da referência aprovada:
- * títulos grandes com a palavra-chave em rosa ou contornada, etiquetas em pílula,
- * cartões branco / rosa / preto com botão de seta, e textura de onda só nos destaques.
+ * títulos grandes e limpos (o número que importa só muda de cor, sem contorno
+ * nem efeito), etiquetas em pílula, cartões branco / rosa / preto com botão de
+ * seta, e textura de onda só nos cartões de destaque.
  */
 import { ArrowUpRight } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -24,23 +25,9 @@ export function fmtNum(v: number | null | undefined, casas = 0): string {
 
 // ---------- texto ----------
 
-/** Palavra em rosa dentro de um título. */
+/** Destaque dentro de um título: só a cor muda, sem contorno nem efeito. */
 export function Hl({ children }: { children: ReactNode }) {
   return <span className="text-primary">{children}</span>;
-}
-
-/** Palavra contornada por uma pílula, como na referência. */
-export function Pill({ children }: { children: ReactNode }) {
-  return <span className="mx-[0.06em] inline-block rounded-full border-[0.055em] border-current px-[0.32em] pb-[0.06em] leading-[1.05]">{children}</span>;
-}
-
-/** Cápsula com a onda, usada uma vez por título. */
-export function Capsule() {
-  return (
-    <span aria-hidden="true" className="relative mx-[0.12em] inline-block h-[0.62em] w-[1.45em] translate-y-[-0.06em] overflow-hidden rounded-full bg-brand-soft align-middle">
-      <Wave className="absolute inset-0 size-full text-primary" opacidade={1} linhas={9} amplitude={42} duracao={16} />
-    </span>
-  );
 }
 
 /** Etiqueta pequena em pílula (contexto da tela ou do cartão). */
