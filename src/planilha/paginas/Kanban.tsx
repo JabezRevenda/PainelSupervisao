@@ -2,21 +2,30 @@ import { CalendarDays, ChevronsLeftRight, Search } from 'lucide-react';
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react';
 import { type ReactNode, useMemo, useState } from 'react';
 import { COR_ETIQUETA, Etiqueta, etiquetaDaEtapa } from '@/components/crm';
-import { Hl, Intro, NameAvatar } from '@/components/kit';
+import { Hl, Intro, NameAvatar, Pilulas } from '@/components/kit';
 import { Page, Reveal, SPRING } from '@/components/motion';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Etapa, ETAPA_COR, ETAPA_LABEL, ETAPAS_CRM, ETAPAS_PERDA, ETAPAS_PRE_VENDAS } from '@/data/types';
 import { cn } from '@/lib/utils';
 import { nomeCurto, usePlanilha } from '../estado';
-import { fmtDia, type LeadP } from '../modelo';
+import { fmtDia, type LeadP, type Resultado } from '../modelo';
 import { OrigemP } from '../pecas';
 
 const LIMITE = 40;
 
+type FiltroResultado = 'todos' | Resultado;
+
+/** Colunas que cada resultado ocupa no quadro. */
+const COLUNAS_DO_RESULTADO: Record<Resultado, Etapa[]> = {
+  aberto: ['demo_agendada', 'reagendar_demo', 'negociacao'],
+  ganho: ['cadastrado'],
+  perdido: ['resgate_sdr', 'limbo_sdr'],
+};
+
 function CartaoP({ l, onOpen, delay }: { l: LeadP; onOpen: () => void; delay: number }) {
-  const etapa = etiquetaDaEtapa(l.coluna);
-  const extra = !['acompanhando', 'ganho', 'cadastrado'].includes(l.status.toLowerCase()) ? l.status : null;
+  const etapa = l.resultado === 'aberto' ? etiquetaDaEtapa(l.coluna) : l.resultado === 'ganho' ? { texto: l.status, cor: COR_ETIQUETA.verde } : null;
+  const extra = l.resultado === 'perdido' || !['acompanhando', 'ganho', 'cadastrado'].includes(l.status.toLowerCase()) ? l.status : null;
   return (
     <motion.button
       type="button"
@@ -62,23 +71,28 @@ export function KanbanP() {
   const [vendedor, setVendedor] = useState('todos');
   const [origem, setOrigem] = useState('todas');
   const [saidas, setSaidas] = useState(false);
+  const [resultado, setResultado] = useState<FiltroResultado>('todos');
   const [expandidas, setExpandidas] = useState<Record<string, boolean>>({});
 
   const vendedores = useMemo(() => [...new Set(leads.map((l) => l.vendedor))].sort((a, b) => a.localeCompare(b)), [leads]);
   const origens = useMemo(() => [...new Set(leads.map((l) => l.canal))].sort((a, b) => a.localeCompare(b)), [leads]);
 
-  const porEtapa = useMemo(() => {
+  const filtrados = useMemo(() => {
     const termo = busca.trim();
+    return leads.filter((l) => (vendedor === 'todos' || l.vendedor === vendedor) && (origem === 'todas' || l.canal === origem) && (!termo || l.id.includes(termo)));
+  }, [leads, busca, vendedor, origem]);
+  const contaResultado = (r: Resultado) => filtrados.filter((l) => l.resultado === r).length;
+
+  const porEtapa = useMemo(() => {
     const m = new Map<Etapa, LeadP[]>();
-    for (const l of leads) {
-      if (vendedor !== 'todos' && l.vendedor !== vendedor) continue;
-      if (origem !== 'todas' && l.canal !== origem) continue;
-      if (termo && !l.id.includes(termo)) continue;
+    for (const l of filtrados) {
+      if (resultado !== 'todos' && l.resultado !== resultado) continue;
       (m.get(l.coluna) ?? m.set(l.coluna, []).get(l.coluna)!).push(l);
     }
     for (const lista of m.values()) lista.sort((a, b) => (a.realizada === 'pendente' ? -1 : 0) - (b.realizada === 'pendente' ? -1 : 0) || b.t - a.t);
     return m;
-  }, [leads, busca, vendedor, origem]);
+  }, [filtrados, resultado]);
+  const colunas = resultado === 'todos' ? ETAPAS_CRM : COLUNAS_DO_RESULTADO[resultado];
 
   const abertos = leads.filter((l) => l.resultado === 'aberto');
   const semDesfecho = abertos.filter((l) => l.realizada === 'pendente').length;
@@ -126,20 +140,37 @@ export function KanbanP() {
             ))}
           </SelectContent>
         </Select>
-        <Alternar ativo={saidas} onClick={() => setSaidas((x) => !x)}>
-          Mostrar saídas
-        </Alternar>
+        {resultado === 'todos' && (
+          <Alternar ativo={saidas} onClick={() => setSaidas((x) => !x)}>
+            Mostrar perdidos
+          </Alternar>
+        )}
+      </Reveal>
+
+      <Reveal>
+        <Pilulas
+          id="resultado"
+          label="Resultado do lead"
+          value={resultado}
+          onChange={setResultado}
+          options={[
+            ['todos', <>Todos <span className="num opacity-60">{filtrados.length}</span></>],
+            ['aberto', <>Em aberto <span className="num opacity-60">{contaResultado('aberto')}</span></>],
+            ['ganho', <>Ganhos <span className="num opacity-60">{contaResultado('ganho')}</span></>],
+            ['perdido', <>Perdidos <span className="num opacity-60">{contaResultado('perdido')}</span></>],
+          ]}
+        />
       </Reveal>
 
       <Reveal>
         <LayoutGroup id="kanban-p">
           <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6">
-            {ETAPAS_CRM.map((etapa) => {
+            {colunas.map((etapa) => {
               const ehPre = ETAPAS_PRE_VENDAS.includes(etapa);
               const ehSaida = ETAPAS_PERDA.includes(etapa);
               const lista = porEtapa.get(etapa) ?? [];
-              const recolhida = ehPre || (ehSaida && !saidas);
-              const subtitulo = ehSaida ? 'perdidos' : etapa === 'cadastrado' ? 'Ganho ou Cadastrado' : null;
+              const recolhida = ehPre || (ehSaida && !saidas && resultado === 'todos');
+              const subtitulo = ehSaida ? 'perdido' : etapa === 'cadastrado' ? 'ganho (Ganho ou Cadastrado)' : null;
               const mostrar = expandidas[etapa] ? Infinity : LIMITE;
               return (
                 <motion.section

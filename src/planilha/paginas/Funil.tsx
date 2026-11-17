@@ -55,18 +55,34 @@ function Etapas({ topo }: { topo: ReactNode }) {
         tag={`Funil · ${mes.nome.toLowerCase()}`}
         title={
           <>
-            De {etapas[0].n} leads, <Hl>{etapas[3].n} viraram ganho</Hl>. A maior perda é entre {etapas[idxPior - 1].rotulo.toLowerCase()} e {pior.rotulo.toLowerCase()}.
+            De {etapas[0].n} leads recebidos, {etapas[3].n} viraram ganho: <Hl>{fmtPct(convTotal, 1)} de conversão</Hl> no funil.
           </>
         }
         aside={
           <>
-            {fmtPct(100 - (pior.conversao ?? 0))} não passam dessa etapa. {r.abertos > 0 && `${r.abertos} leads de ${nomeMes} seguem em acompanhamento e ainda podem virar ganho.`}
+            A maior perda é entre {etapas[idxPior - 1].rotulo.toLowerCase()} e {pior.rotulo.toLowerCase()}: {fmtPct(100 - (pior.conversao ?? 0))} não passam. {r.abertos > 0 && `${r.abertos} leads de ${nomeMes} seguem em acompanhamento e ainda podem virar ganho.`}
           </>
         }
       />
 
       <Bloco titulo={`Funil de ${nomeMes}`}>
-        <p className="-mt-2 text-sm text-muted-foreground">A largura de cada faixa é proporcional ao número de leads que chegou à etapa.</p>
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-2xl bg-muted px-5 py-4">
+          <div className="flex flex-col">
+            <span className="text-xs text-muted-foreground">Conversão do funil · leads recebidos → ganhos</span>
+            <span className="display num text-[40px] leading-tight">{fmtPct(convTotal, 1)}</span>
+          </div>
+          <div className="flex items-baseline gap-2 text-sm">
+            <span className="num text-lg font-medium">{etapas[0].n}</span> leads recebidos
+            <span className="text-muted-foreground">→</span>
+            <span className="num text-lg font-medium">{etapas[3].n}</span> ganhos
+          </div>
+          {convTotalAnt !== null && (
+            <span className="text-sm text-muted-foreground lg:ml-auto">
+              {nomeCurto(anterior!.mes)}: {fmtPct(convTotalAnt, 1)} ({ant![0].n} → {ant![3].n})
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-muted-foreground">A largura de cada faixa é proporcional ao número de leads que chegou à etapa.</p>
         <div className="flex flex-col gap-1.5">
           {etapas.map((e, i) => {
             const topoPct = (e.n / base) * 100;
@@ -120,13 +136,13 @@ function Etapas({ topo }: { topo: ReactNode }) {
       </Bloco>
 
       <Stagger className="grid gap-4 md:grid-cols-3">
-        <Bloco tom="ink" onda titulo="Lead → ganho">
-          <Numero value={convTotal} format={(v) => fmtPct(v, 1)} unidade="dos leads" />
-          <Contexto className="mt-auto" itens={[`${etapas[3].n} ganhos de ${etapas[0].n} leads`, convTotalAnt !== null && `${nomeCurto(anterior!.mes)}: ${fmtPct(convTotalAnt, 1)}`]} />
-        </Bloco>
-        <Bloco titulo="Lead → reunião">
+        <Bloco titulo="Lead recebido → reunião">
           <Numero value={etapas[1].conversao} format={(v) => fmtPct(v)} unidade="viram reunião" />
           <Contexto className="mt-auto text-muted-foreground opacity-100" itens={[`${etapas[1].n} de ${etapas[0].n}`, ant && `${nomeCurto(anterior!.mes)}: ${fmtPct(ant[1].conversao)}`]} />
+        </Bloco>
+        <Bloco titulo="Agendada → realizada">
+          <Numero value={etapas[2].conversao} format={(v) => fmtPct(v)} unidade="acontecem" />
+          <Contexto className="mt-auto text-muted-foreground opacity-100" itens={[`${etapas[2].n} de ${etapas[1].n} agendadas`, ant && `${nomeCurto(anterior!.mes)}: ${fmtPct(ant[2].conversao)}`]} />
         </Bloco>
         <Bloco titulo="Reunião realizada → ganho">
           <Numero value={etapas[3].conversao} format={(v) => fmtPct(v)} unidade="fecham" />
@@ -140,12 +156,12 @@ function Etapas({ topo }: { topo: ReactNode }) {
             <thead>
               <tr className="text-left text-xs text-muted-foreground">
                 <th className="px-2 pb-2 font-normal">Mês</th>
-                <th className="px-2 pb-2 text-right font-normal">Leads</th>
+                <th className="px-2 pb-2 text-right font-normal">Leads recebidos</th>
                 <th className="px-2 pb-2 text-right font-normal">Agendadas</th>
                 <th className="px-2 pb-2 text-right font-normal">Realizadas</th>
                 <th className="px-2 pb-2 text-right font-normal">Ganhos</th>
                 <th className="px-2 pb-2 text-right font-normal">Lead → reunião</th>
-                <th className="px-2 pb-2 text-right font-normal">Lead → ganho</th>
+                <th className="px-2 pb-2 text-right font-normal">Conversão do funil</th>
               </tr>
             </thead>
             <tbody>
@@ -158,7 +174,7 @@ function Etapas({ topo }: { topo: ReactNode }) {
                     </td>
                   ))}
                   <td className="num px-2 text-right">{fmtPct(f[1].conversao)}</td>
-                  <td className="num px-2 text-right">{fmtPct(pct(f[3].n, f[0].n), 1)}</td>
+                  <td className="num px-2 text-right font-medium">{fmtPct(pct(f[3].n, f[0].n), 1)}</td>
                 </tr>
               ))}
             </tbody>

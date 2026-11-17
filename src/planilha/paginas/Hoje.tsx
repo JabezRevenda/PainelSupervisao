@@ -171,6 +171,10 @@ export function Hoje() {
               </li>
             ))}
           </ol>
+          <div className="flex items-baseline justify-between gap-3 border-t pt-3 text-sm">
+            <span className="text-muted-foreground">Conversão do funil · leads recebidos → ganhos</span>
+            <span className="num text-lg font-medium">{fmtPct(funil[0].n ? (funil[3].n / funil[0].n) * 100 : null, 1)}</span>
+          </div>
         </Bloco>
       </Stagger>
 

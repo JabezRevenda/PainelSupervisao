@@ -188,7 +188,7 @@ export interface PassoFunilP {
 }
 
 export const FUNIL_P: { chave: PassoFunilP['chave']; rotulo: string; ajuda: string }[] = [
-  { chave: 'leads', rotulo: 'Leads', ajuda: 'oportunidades geradas no mês' },
+  { chave: 'leads', rotulo: 'Leads recebidos', ajuda: 'todos os leads que entraram no mês' },
   { chave: 'agendadas', rotulo: 'Reuniões agendadas', ajuda: 'leads passados ao vendedor com reunião' },
   { chave: 'realizadas', rotulo: 'Reuniões realizadas', ajuda: 'o lead compareceu' },
   { chave: 'ganhos', rotulo: 'Ganhos', ajuda: 'status Ganho ou Cadastrado' },
