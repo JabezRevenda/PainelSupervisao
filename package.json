@@ -9,6 +9,7 @@
     "dev:planilha": "VITE_FONTE=planilha vite",
     "build": "tsc --noEmit && vite build",
     "build:planilha": "tsc --noEmit && VITE_FONTE=planilha vite build --outDir dist-planilha",
+    "build:arquivo": "tsc --noEmit && VITE_FONTE=planilha vite build --config vite.arquivo.config.ts && python3 scripts/embutir_logos.py dist-arquivo/index.html",
     "preview": "vite preview",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
@@ -36,6 +37,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "typescript": "^5.9.3",
     "vite": "^5.4.21",
+    "vite-plugin-singlefile": "^2.0.3",
     "vitest": "^2.1.9"
   }
 }

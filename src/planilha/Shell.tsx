@@ -122,7 +122,7 @@ function Topo() {
               <TooltipContent className="max-w-64">Dados de “{dados.arquivo}”. Para atualizar, importe a planilha de novo.</TooltipContent>
             </Tooltip>
           )}
-          <SeletorMes className="max-sm:w-[132px]" />
+          <SeletorMes className="max-sm:w-[150px]" />
           <BotaoTema />
           <Link to="/pendencias" className="group/cta inline-flex h-9 shrink-0 items-center gap-2.5 rounded-full bg-ink pr-1 pl-4 text-sm font-medium text-ink-foreground transition-colors hover:bg-ink/85">
             <span className="max-sm:hidden">Pendências</span>

@@ -6,3 +6,5 @@ dist
 coverage
 src/planilha/dados.json
 dist-planilha
+dist-arquivo
+Painel de Supervisão - dados da planilha.html
