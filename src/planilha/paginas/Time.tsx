@@ -5,10 +5,11 @@ import { Bloco, Contexto, fmtNum, fmtPct, Hl, Intro, NameAvatar, Pilulas } from 
 import { EASE, Page, SPRING } from '@/components/motion';
 import { cn } from '@/lib/utils';
 import { nomeCurto, usePlanilha } from '../estado';
-import { type LinhaVendedorP, porVendedor, resumir } from '../modelo';
+import { type Equipe, EQUIPE_LABEL, equipeDe, type LinhaVendedorP, porVendedor, resumir } from '../modelo';
 import { TabelaLeads } from '../pecas';
 
 type Ordem = 'recebidos' | 'conversao' | 'ganhos';
+type FiltroEquipe = Equipe | 'todos';
 
 const ORDEM: Record<Ordem, { rotulo: string; pergunta: string; valor: (l: LinhaVendedorP) => number }> = {
   recebidos: { rotulo: 'Leads recebidos', pergunta: 'Quantos leads cada vendedor recebeu com reunião agendada', valor: (l) => l.recebidos },
@@ -20,12 +21,22 @@ export function Time() {
   const { mes, leads, anterior } = usePlanilha();
   const [params, setParams] = useSearchParams();
   const [ordem, setOrdem] = useState<Ordem>('recebidos');
+  const [equipe, setEquipe] = useState<FiltroEquipe>(() => {
+    const v = params.get('v');
+    return v && equipeDe(v) === 'externo' ? 'externo' : 'interno';
+  });
 
-  const { linhas, time, ant } = useMemo(() => {
-    const linhas = porVendedor(leads);
+  const { linhas, time, ant, doTime, comparativo } = useMemo(() => {
+    const doTime = equipe === 'todos' ? leads : leads.filter((l) => l.equipe === equipe);
+    const linhas = porVendedor(doTime);
     const ant = new Map((anterior ? porVendedor(anterior.ls) : []).map((l) => [l.nome, l]));
-    return { linhas, time: resumir(leads), ant };
-  }, [leads, anterior]);
+    const comparativo = (['interno', 'externo'] as Equipe[]).map((e) => {
+      const xs = leads.filter((l) => l.equipe === e);
+      const antXs = anterior ? anterior.ls.filter((l) => l.equipe === e) : null;
+      return { e, r: resumir(xs), vendedores: new Set(xs.map((l) => l.vendedor)).size, ant: antXs ? resumir(antXs) : null };
+    });
+    return { linhas, time: resumir(doTime), ant, doTime, comparativo };
+  }, [leads, anterior, equipe]);
 
   const cfg = ORDEM[ordem];
   const ranking = [...linhas].sort((a, b) => cfg.valor(b) - cfg.valor(a) || b.recebidos - a.recebidos);
@@ -40,10 +51,24 @@ export function Time() {
   return (
     <Page className="gap-8">
       <Intro
-        tag={`Time · ${mes.nome.toLowerCase()}`}
+        top={
+          <Pilulas
+            id="equipe"
+            label="Equipe"
+            value={equipe}
+            onChange={setEquipe}
+            options={[
+              ['interno', `Internos · ${comparativo[0].vendedores}`],
+              ['externo', `Externos · ${comparativo[1].vendedores}`],
+              ['todos', 'Todos'],
+            ]}
+          />
+        }
+        tag={`Time · ${equipe === 'todos' ? 'todos os vendedores' : EQUIPE_LABEL[equipe].toLowerCase()} · ${mes.nome.toLowerCase()}`}
         title={
           <>
-            <Hl>{time.recebidos} leads</Hl> para {linhas.length} vendedores em {nomeMes}. Conversão do time: {fmtPct(time.conversao)}.
+            {equipe === 'todos' ? '' : `${EQUIPE_LABEL[equipe]}: `}
+            <Hl>{time.recebidos} leads</Hl> para {linhas.length} vendedores em {nomeMes}. Conversão: {fmtPct(time.conversao)}.
           </>
         }
         aside={
@@ -54,8 +79,49 @@ export function Time() {
         }
       />
 
+      <Bloco titulo={`Internos × externos em ${nomeMes}`}>
+        <div className="-mx-2 overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted-foreground">
+                <th className="px-2 pb-2 font-normal">Equipe</th>
+                <th className="px-2 pb-2 text-right font-normal">Vendedores</th>
+                <th className="px-2 pb-2 text-right font-normal">Leads recebidos</th>
+                <th className="px-2 pb-2 text-right font-normal">Realizadas</th>
+                <th className="px-2 pb-2 text-right font-normal">Comparecimento</th>
+                <th className="px-2 pb-2 text-right font-normal">Ganhos</th>
+                <th className="px-2 pb-2 text-right font-normal">Conversão</th>
+                <th className="px-2 pb-2 text-right font-normal">{anterior ? `Conversão em ${nomeCurto(anterior.mes)}` : ''}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {comparativo.map(({ e, r, vendedores, ant: a }) => (
+                <tr
+                  key={e}
+                  onClick={() => setEquipe(e)}
+                  className={cn('cursor-pointer border-t transition-colors hover:bg-muted/60', equipe === e && 'bg-muted/70')}
+                >
+                  <td className="px-2 py-2.5 font-medium">{EQUIPE_LABEL[e]}</td>
+                  <td className="num px-2 text-right text-muted-foreground">{vendedores}</td>
+                  <td className="num px-2 text-right font-medium">{r.recebidos}</td>
+                  <td className="num px-2 text-right">{r.realizadas}</td>
+                  <td className="num px-2 text-right">{fmtPct(r.comparecimento)}</td>
+                  <td className="num px-2 text-right">{r.ganhos}</td>
+                  <td className="num px-2 text-right font-medium">{fmtPct(r.conversao)}</td>
+                  <td className="num px-2 text-right text-muted-foreground">{a ? fmtPct(a.conversao) : ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Contexto
+          className="text-muted-foreground opacity-100"
+          itens={['internos: Inside Sales, como no resumo "Internos" da planilha', 'clique em uma equipe para ver os vendedores dela']}
+        />
+      </Bloco>
+
       <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
-        <Bloco titulo="Leads e conversão por vendedor" className="lg:col-span-2">
+        <Bloco titulo={`Leads e conversão por vendedor · ${equipe === 'todos' ? 'todos' : EQUIPE_LABEL[equipe].toLowerCase()}`} className="lg:col-span-2">
           <div className="flex flex-col gap-3">
             <Pilulas id="ordem" label="Ordenar por" value={ordem} onChange={setOrdem} options={(Object.keys(ORDEM) as Ordem[]).map((k) => [k, ORDEM[k].rotulo])} />
             <p className="text-sm text-muted-foreground">{cfg.pergunta}. Clique em um nome para ver o detalhe.</p>
@@ -121,7 +187,7 @@ export function Time() {
 
       {sel && (
         <Bloco titulo={`Leads de ${sel.nome} em ${nomeMes}`}>
-          <TabelaLeads itens={leads.filter((l) => l.vendedor === sel.nome).sort((a, b) => b.t - a.t)} semVendedor limite={15} />
+          <TabelaLeads itens={doTime.filter((l) => l.vendedor === sel.nome).sort((a, b) => b.t - a.t)} semVendedor limite={15} />
         </Bloco>
       )}
     </Page>

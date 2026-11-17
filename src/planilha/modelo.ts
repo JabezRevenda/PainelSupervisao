@@ -27,6 +27,8 @@ export interface LinhaPlanilha {
   realizada: Realizada;
   sdr: string;
   status: string;
+  /** Data em que virou ganho, quando a planilha tiver a coluna (opcional) */
+  dataGanho?: string | null;
 }
 
 export interface DiaPlanilha {
@@ -66,6 +68,24 @@ export interface LeadP extends LinhaPlanilha {
   semData: boolean;
   resultado: Resultado;
   coluna: Etapa;
+  equipe: Equipe;
+  /** Meia-noite da data do ganho, quando a planilha informa */
+  tGanho: number | null;
+}
+
+export type Equipe = 'interno' | 'externo';
+
+/**
+ * Vendedores internos (Inside Sales). Confere com os totais "Internos" e
+ * "Externos" do resumo de cada aba da planilha (fevereiro a novembro de 2026).
+ * Quem não está aqui conta como externo.
+ */
+export const INTERNOS = new Set(['Bianca', 'Thyago', 'Ramon', 'Jabez', 'Maria Lucia', 'Renatha', 'Moisés', 'Gustavo', 'Leonardo']);
+
+export const EQUIPE_LABEL: Record<Equipe, string> = { interno: 'Internos', externo: 'Externos' };
+
+export function equipeDe(vendedor: string): Equipe {
+  return INTERNOS.has(vendedor) ? 'interno' : 'externo';
 }
 
 /** Feriados descontados: a planilha marca os feriados nacionais como "Feriado". */
@@ -110,6 +130,8 @@ export function prepararLeads(dados: DadosPlanilha): LeadP[] {
         semData: !l.data,
         resultado: resultadoDe(l.status),
         coluna: colunaDe(l),
+        equipe: equipeDe(l.vendedor),
+        tGanho: l.dataGanho ? diaParaT(l.dataGanho) : null,
       });
     });
   }
@@ -325,3 +347,69 @@ export const REALIZADA_INFO: Record<Realizada, { rotulo: string; cls: string; co
   nao: { rotulo: 'Não compareceu', cls: 'border-primary/40 text-primary', cor: 'var(--primary)' },
   pendente: { rotulo: 'Sem desfecho', cls: 'border-warning bg-warning/15 text-warning-foreground', cor: 'var(--warning)' },
 };
+
+// ---------- idade do lead ----------
+
+export interface FaixaIdade {
+  rotulo: string;
+  de: number;
+  ate: number;
+  leads: number;
+  ganhos: number;
+  abertos: number;
+  conversao: number | null;
+}
+
+const FAIXAS: [string, number, number][] = [
+  ['até 7 dias', 0, 7],
+  ['8 a 15 dias', 8, 15],
+  ['16 a 30 dias', 16, 30],
+  ['31 a 60 dias', 31, 60],
+  ['61 a 90 dias', 61, 90],
+  ['mais de 90 dias', 91, Infinity],
+];
+
+/** Idade do lead em dias: de agendado (data da linha) até hoje. */
+export function idadeDias(l: LeadP, agora: number): number {
+  return Math.max(0, Math.floor((agora - l.t) / DAY));
+}
+
+/**
+ * Conversão de hoje por idade do lead. Mostra quanto tempo o lead costuma levar
+ * para virar ganho: lead novo ainda não teve tempo de fechar.
+ */
+export function conversaoPorIdade(ls: LeadP[], agora: number): FaixaIdade[] {
+  return FAIXAS.map(([rotulo, de, ate]) => {
+    const xs = ls.filter((l) => !l.semData && idadeDias(l, agora) >= de && idadeDias(l, agora) <= ate);
+    const ganhos = xs.filter((l) => l.resultado === 'ganho').length;
+    return { rotulo, de, ate, leads: xs.length, ganhos, abertos: xs.filter((l) => l.resultado === 'aberto').length, conversao: pct(ganhos, xs.length) };
+  });
+}
+
+/** A planilha traz a data do ganho em ao menos um lead? */
+export function temDataGanho(ls: LeadP[]): boolean {
+  return ls.some((l) => l.tGanho !== null);
+}
+
+export interface MesmaIdade {
+  chave: string;
+  nome: string;
+  leads: number;
+  ganhosAteDias: number;
+  conversao: number | null;
+  /** O mês já tem idade para a comparação (todos os leads com N dias ou mais) */
+  completo: boolean;
+}
+
+/**
+ * Comparação justa entre meses: ganhos em até N dias do agendamento.
+ * Só funciona com a data do ganho na planilha.
+ */
+export function conversaoNaMesmaIdade(meses: MesPlanilha[], leadsDoMes: (c: string) => LeadP[], dias: number, agora: number): MesmaIdade[] {
+  return meses.map((m) => {
+    const ls = leadsDoMes(m.chave).filter((l) => !l.semData);
+    const ganhos = ls.filter((l) => l.resultado === 'ganho' && l.tGanho !== null && (l.tGanho - l.t) / DAY <= dias).length;
+    const maisNovo = ls.reduce((mx, l) => Math.max(mx, l.t), 0);
+    return { chave: m.chave, nome: m.nome, leads: ls.length, ganhosAteDias: ganhos, conversao: pct(ganhos, ls.length), completo: maisNovo > 0 && (agora - maisNovo) / DAY >= dias };
+  });
+}

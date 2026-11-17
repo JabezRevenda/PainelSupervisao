@@ -12,7 +12,9 @@ O que é lido de cada aba mensal de 2026 ("Janeiro 26" ... "Novembro 26"):
   - Dia a dia (colunas A, B, D, E): leads do dia, demonstrações e perdidos.
   - Resumo: "Oportunidades Geradas", "Leads Perdidas" e "Meta".
   - Lista "ID DO LEAD": um lead por linha, com comercial, data, canal,
-    tipo de demonstração, se foi realizada, SDR e status.
+    tipo de demonstração, se foi realizada, SDR e status. Se houver uma coluna
+    "DATA GANHO" (ou "Data de fechamento"/"Data da venda"), ela também é lida e
+    libera a comparação dos meses na mesma idade do lead.
 
 Requer: openpyxl (pip install openpyxl).
 """
@@ -113,6 +115,20 @@ def data_do_lead(v, ano: int, mes: int):
     return None
 
 
+def data_qualquer(v):
+    """Data do ganho: pode cair em outro mês, então só aceita texto dd/mm/aaaa ou data do Excel como está."""
+    if isinstance(v, dt.datetime):
+        return v.date().isoformat()
+    m = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{2,4})$', limpar(v))
+    if m:
+        ano = int(m.group(3)) + (2000 if len(m.group(3)) == 2 else 0)
+        try:
+            return dt.date(ano, int(m.group(2)), int(m.group(1))).isoformat()
+        except ValueError:
+            return None
+    return None
+
+
 def procurar(ws, rotulo: str):
     alvo = sem_acento(rotulo).lower()
     for row in ws.iter_rows():
@@ -154,6 +170,8 @@ def ler_aba(ws, ano: int, mes: int):
     if cab:
         col = {limpar(ws.cell(cab.row, cab.column + k).value).lower(): cab.column + k for k in range(0, 10)}
         c_real = col.get('realizada', cab.column + 5)
+        # Coluna opcional com a data em que o lead virou ganho (ex.: "DATA GANHO").
+        c_ganho = next((c for nome, c in col.items() if 'data' in sem_acento(nome) and any(p in sem_acento(nome) for p in ('ganho', 'fechamento', 'venda'))), None)
         for r in range(cab.row + 1, ws.max_row + 1):
             g = lambda k: ws.cell(r, cab.column + k).value  # noqa: E731
             lid, vend = g(0), g(1)
@@ -182,6 +200,7 @@ def ler_aba(ws, ano: int, mes: int):
                 'realizada': realizada,
                 'sdr': sdr or '—',
                 'status': status,
+                'dataGanho': data_qualquer(ws.cell(r, c_ganho).value) if c_ganho else None,
             })
 
     meta = numero_ao_lado(ws, meta_c) if meta_c else None

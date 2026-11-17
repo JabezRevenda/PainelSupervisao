@@ -151,7 +151,14 @@ export function MetasP() {
             ))}
             {vend.length === 0 && <li className="text-sm text-muted-foreground">Nenhum ganho ainda.</li>}
           </ul>
-          <Contexto className="text-muted-foreground opacity-100" itens={['a planilha não tem meta por vendedor']} />
+          <Contexto
+            className="text-muted-foreground opacity-100"
+            itens={[
+              `internos ${leads.filter((l) => l.equipe === 'interno' && l.resultado === 'ganho').length}`,
+              `externos ${leads.filter((l) => l.equipe === 'externo' && l.resultado === 'ganho').length}`,
+              'a planilha não tem meta por vendedor',
+            ]}
+          />
         </Bloco>
       </div>
     </Page>

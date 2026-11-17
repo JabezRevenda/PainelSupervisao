@@ -6,7 +6,7 @@ import { EASE, Page, Stagger } from '@/components/motion';
 import { fmtLongDate, minutesOfDay } from '@/data/time';
 import { cn } from '@/lib/utils';
 import { nomeCurto, usePlanilha } from '../estado';
-import { funilDoMes, metaDoMes, porVendedor, resumir } from '../modelo';
+import { type Equipe, EQUIPE_LABEL, equipeDe, funilDoMes, metaDoMes, porVendedor, resumir } from '../modelo';
 import { AvisoPlanilha } from '../pecas';
 
 function saudacao(agora: number) {
@@ -37,6 +37,9 @@ export function Hoje() {
   const esperado = meta.diasTotal ? (meta.diasPassados / meta.diasTotal) * 100 : 0;
   const convTime = r.conversao;
   const maxRec = Math.max(1, ...vend.map((v) => v.recebidos));
+  const grupos = (['interno', 'externo'] as Equipe[])
+    .map((e) => ({ e, linhas: vend.filter((v) => equipeDe(v.nome) === e), r: resumir(leads.filter((l) => l.equipe === e)) }))
+    .filter((g) => g.linhas.length > 0);
 
   return (
     <Page className="gap-8">
@@ -123,34 +126,45 @@ export function Hoje() {
                   <th className="px-2 pb-2 text-right font-normal">Conversão</th>
                 </tr>
               </thead>
-              <tbody>
-                {vend.map((v, i) => (
-                  <motion.tr
-                    key={v.nome}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35, ease: EASE, delay: 0.2 + i * 0.03 }}
-                    onClick={() => navigate(`/time?v=${encodeURIComponent(v.nome)}`)}
-                    className="cursor-pointer border-t transition-colors hover:bg-muted/60"
-                  >
-                    <td className="px-2 py-2.5">
-                      <span className="flex items-center gap-2.5">
-                        <NameAvatar nome={v.nome} size={28} />
-                        <span className="font-medium">{v.nome}</span>
-                      </span>
+              {grupos.map((g, gi) => (
+                <tbody key={g.e}>
+                  <tr className={cn('bg-muted/60 text-xs', gi > 0 && 'border-t-8 border-card')}>
+                    <td className="rounded-l-lg px-2 py-2 font-medium tracking-wide uppercase">
+                      {EQUIPE_LABEL[g.e]} · {g.linhas.length}
                     </td>
-                    <td className="px-2">
-                      <span className="flex items-center gap-3">
-                        <Medidor pct={(v.recebidos / maxRec) * 100} delay={0.25 + i * 0.03} className="h-1.5" />
-                        <span className="num w-6 text-right font-medium">{v.recebidos}</span>
-                      </span>
-                    </td>
-                    <td className="num px-2 text-right text-muted-foreground">{v.realizadas}</td>
-                    <td className="num px-2 text-right">{v.ganhos}</td>
-                    <td className={cn('num px-2 text-right font-medium', v.recebidos >= 3 && convTime !== null && (v.conversao ?? 0) < convTime / 2 && 'text-primary')}>{fmtPct(v.conversao)}</td>
-                  </motion.tr>
-                ))}
-              </tbody>
+                    <td className="num px-2 font-medium">{g.r.recebidos} leads</td>
+                    <td className="num px-2 text-right">{g.r.realizadas}</td>
+                    <td className="num px-2 text-right">{g.r.ganhos}</td>
+                    <td className="num rounded-r-lg px-2 text-right font-medium">{fmtPct(g.r.conversao)}</td>
+                  </tr>
+                {g.linhas.map((v, i) => (
+                    <motion.tr
+                      key={v.nome}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.35, ease: EASE, delay: 0.2 + i * 0.03 }}
+                      onClick={() => navigate(`/time?v=${encodeURIComponent(v.nome)}`)}
+                      className="cursor-pointer border-t transition-colors hover:bg-muted/60"
+                    >
+                      <td className="px-2 py-2.5">
+                        <span className="flex items-center gap-2.5">
+                          <NameAvatar nome={v.nome} size={28} />
+                          <span className="font-medium">{v.nome}</span>
+                        </span>
+                      </td>
+                      <td className="px-2">
+                        <span className="flex items-center gap-3">
+                          <Medidor pct={(v.recebidos / maxRec) * 100} delay={0.25 + i * 0.03} className="h-1.5" />
+                          <span className="num w-6 text-right font-medium">{v.recebidos}</span>
+                        </span>
+                      </td>
+                      <td className="num px-2 text-right text-muted-foreground">{v.realizadas}</td>
+                      <td className="num px-2 text-right">{v.ganhos}</td>
+                      <td className={cn('num px-2 text-right font-medium', v.recebidos >= 3 && convTime !== null && (v.conversao ?? 0) < convTime / 2 && 'text-primary')}>{fmtPct(v.conversao)}</td>
+                    </motion.tr>
+                  ))}
+                </tbody>
+              ))}
             </table>
           </div>
           <p className="text-xs text-muted-foreground">

@@ -1,19 +1,20 @@
 import { motion } from 'motion/react';
-import { type ReactNode, useMemo } from 'react';
+import { type ReactNode, useMemo, useState } from 'react';
 import { Navigate, useNavigate, useParams } from 'react-router-dom';
 import { Bloco, Contexto, fmtNum, fmtPct, Hl, Intro, Numero, Pilulas } from '@/components/kit';
 import { AnimatedNumber, EASE, Page, Stagger } from '@/components/motion';
 import { cn } from '@/lib/utils';
 import { nomeCurto, usePlanilha } from '../estado';
-import { fmtDia, funilDoMes, pct, porCanal, resumir } from '../modelo';
+import { conversaoNaMesmaIdade, conversaoPorIdade, type Equipe, EQUIPE_LABEL, fmtDia, funilDoMes, idadeDias, pct, porCanal, resumir, temDataGanho } from '../modelo';
 import { OrigemP } from '../pecas';
 
-type Aba = 'etapas' | 'origem';
+type Aba = 'etapas' | 'idade' | 'origem';
+type FiltroEquipe = Equipe | 'todos';
 
 export function FunilP() {
   const { aba } = useParams();
   const navigate = useNavigate();
-  if (aba !== 'etapas' && aba !== 'origem') return <Navigate to="/funil/etapas" replace />;
+  if (aba !== 'etapas' && aba !== 'idade' && aba !== 'origem') return <Navigate to="/funil/etapas" replace />;
   const topo = (
     <Pilulas
       id="aba-funil"
@@ -22,11 +23,12 @@ export function FunilP() {
       onChange={(a) => navigate(`/funil/${a}`)}
       options={[
         ['etapas', 'Funil'],
+        ['idade', 'Idade do lead'],
         ['origem', 'Origem do lead'],
       ]}
     />
   );
-  return aba === 'etapas' ? <Etapas topo={topo} /> : <Origem topo={topo} />;
+  return aba === 'etapas' ? <Etapas topo={topo} /> : aba === 'idade' ? <Idade topo={topo} /> : <Origem topo={topo} />;
 }
 
 function Etapas({ topo }: { topo: ReactNode }) {
@@ -251,6 +253,158 @@ function Origem({ topo }: { topo: ReactNode }) {
           </table>
         </div>
         <Contexto className="text-muted-foreground opacity-100" itens={['conversão só aparece com 5 reuniões ou mais', `${leads.length} reuniões em ${nomeMes}`]} />
+      </Bloco>
+    </Page>
+  );
+}
+
+const DIAS_COMPARACAO = 30;
+
+/**
+ * Idade do lead: quanto tempo o lead teve para fechar. Mês recente sempre parece
+ * pior porque seus leads são novos; esta aba mostra isso e, com a data do ganho
+ * na planilha, compara os meses na mesma idade.
+ */
+function Idade({ topo }: { topo: ReactNode }) {
+  const { todos, meses, mes, leadsDoMes, agora } = usePlanilha();
+  const [equipe, setEquipe] = useState<FiltroEquipe>('todos');
+  const filtra = (ls: typeof todos) => (equipe === 'todos' ? ls : ls.filter((l) => l.equipe === equipe));
+  const d = useMemo(() => {
+    const base = filtra(todos);
+    const faixas = conversaoPorIdade(base, agora);
+    const porMes = meses.map((m) => {
+      const ls = filtra(leadsDoMes(m.chave)).filter((l) => !l.semData);
+      const idades = ls.map((l) => idadeDias(l, agora));
+      const r = resumir(ls);
+      return { m, r, min: idades.length ? Math.min(...idades) : null, max: idades.length ? Math.max(...idades) : null };
+    });
+    const comData = temDataGanho(base);
+    const mesma = comData ? conversaoNaMesmaIdade(meses, (c) => filtra(leadsDoMes(c)), DIAS_COMPARACAO, agora) : [];
+    return { faixas, porMes, comData, mesma };
+  }, [todos, meses, leadsDoMes, agora, equipe]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { faixas, porMes, comData, mesma } = d;
+  const novas = faixas.slice(0, 2);
+  const novasLeads = novas.reduce((s, f) => s + f.leads, 0);
+  const convNovas = pct(novas.reduce((s, f) => s + f.ganhos, 0), novasLeads);
+  const maduras = faixas.filter((f) => f.de > 60);
+  const convMaduras = pct(maduras.reduce((s, f) => s + f.ganhos, 0), maduras.reduce((s, f) => s + f.leads, 0));
+  const maxConv = Math.max(10, ...faixas.map((f) => f.conversao ?? 0));
+  const escala = Math.ceil(maxConv / 10) * 10;
+  const atual = porMes.find((x) => x.m.chave === mes.chave);
+
+  return (
+    <Page className="gap-8">
+      <Intro
+        top={topo}
+        tag={`Idade do lead · ${equipe === 'todos' ? 'todos os vendedores' : EQUIPE_LABEL[equipe].toLowerCase()} · 2026`}
+        title={
+          <>
+            Lead novo ainda não teve tempo de fechar: com até 15 dias, <Hl>{fmtPct(convNovas)} viram ganho</Hl>. Com mais de 60 dias, {fmtPct(convMaduras)}.
+          </>
+        }
+        aside={
+          <>
+            Idade = dias desde o agendamento da reunião até hoje.{' '}
+            {atual && atual.min !== null && `Os leads de ${nomeCurto(mes)} têm de ${atual.min} a ${atual.max} dias, então a conversão do mês ainda vai subir.`}
+          </>
+        }
+        action={
+          <Pilulas
+            id="equipe-idade"
+            label="Equipe"
+            value={equipe}
+            onChange={setEquipe}
+            options={[
+              ['todos', 'Todos'],
+              ['interno', 'Internos'],
+              ['externo', 'Externos'],
+            ]}
+          />
+        }
+      />
+
+      <div className="grid gap-4 lg:grid-cols-3 lg:items-start">
+        <Bloco titulo="Conversão de hoje por idade do lead" className="lg:col-span-2">
+          <div className="flex flex-col gap-4">
+            {faixas.map((f, i) => (
+              <div key={f.rotulo} className="grid grid-cols-[120px_1fr_210px] items-center gap-4 text-sm max-sm:grid-cols-[96px_1fr]">
+                <span>{f.rotulo}</span>
+                <span className="h-3 rounded-full bg-track">
+                  <motion.span
+                    className={cn('block h-full rounded-full', f.de <= 15 ? 'bg-ink/35' : 'bg-ink')}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${((f.conversao ?? 0) / escala) * 100}%` }}
+                    transition={{ duration: 0.7, ease: EASE, delay: 0.1 + i * 0.05 }}
+                  />
+                </span>
+                <span className="num text-right max-sm:col-span-2 max-sm:text-left">
+                  <span className="font-medium">{fmtPct(f.conversao)}</span>
+                  <span className="text-muted-foreground">
+                    {' '}
+                    · {f.ganhos} de {f.leads}
+                    {f.abertos > 0 && ` · ${f.abertos} em aberto`}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+          <Contexto className="text-muted-foreground opacity-100" itens={[`escala de 0 a ${escala}%`, 'todos os leads de 2026 com data, pelo status de hoje']} />
+        </Bloco>
+
+        <Bloco tom={comData ? 'white' : 'ink'} titulo={`Meses na mesma idade · ${DIAS_COMPARACAO} dias`}>
+          {comData ? (
+            <ul className="flex flex-col gap-2 text-sm">
+              {[...mesma].reverse().map((x) => (
+                <li key={x.chave} className={cn('flex items-baseline justify-between gap-3', x.chave === mes.chave && 'font-medium')}>
+                  <span>{x.nome}</span>
+                  <span className="num">
+                    {x.completo ? fmtPct(x.conversao, 1) : <span className="text-muted-foreground">ainda sem {DIAS_COMPARACAO} dias</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <>
+              <p className="text-[15px] leading-relaxed">
+                Para comparar os meses de forma justa (quantos leads viram ganho em até {DIAS_COMPARACAO} dias), a planilha precisa da data em que cada lead virou ganho.
+              </p>
+              <p className="text-sm leading-relaxed opacity-75">
+                Basta uma coluna “DATA GANHO” na lista de leads, preenchida no dia em que a venda for registrada, como a saída no controle de estoque. O painel já lê essa coluna
+                e este bloco passa a mostrar a comparação.
+              </p>
+            </>
+          )}
+        </Bloco>
+      </div>
+
+      <Bloco titulo="Mês a mês: idade e conversão até hoje">
+        <div className="-mx-2 overflow-x-auto">
+          <table className="w-full min-w-[600px] text-sm">
+            <thead>
+              <tr className="text-left text-xs text-muted-foreground">
+                <th className="px-2 pb-2 font-normal">Mês</th>
+                <th className="px-2 pb-2 text-right font-normal">Idade dos leads</th>
+                <th className="px-2 pb-2 text-right font-normal">Leads recebidos</th>
+                <th className="px-2 pb-2 text-right font-normal">Ganhos</th>
+                <th className="px-2 pb-2 text-right font-normal">Em aberto</th>
+                <th className="px-2 pb-2 text-right font-normal">Conversão até hoje</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...porMes].reverse().map(({ m, r, min, max }) => (
+                <tr key={m.chave} className={cn('border-t', m.chave === mes.chave && 'bg-muted/70 font-medium')}>
+                  <td className="px-2 py-2">{m.nome}</td>
+                  <td className="num px-2 text-right text-muted-foreground">{min === null ? '—' : `${min} a ${max} dias`}</td>
+                  <td className="num px-2 text-right">{r.recebidos}</td>
+                  <td className="num px-2 text-right">{r.ganhos}</td>
+                  <td className="num px-2 text-right">{r.abertos}</td>
+                  <td className="num px-2 text-right font-medium">{fmtPct(r.conversao)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <Contexto className="text-muted-foreground opacity-100" itens={['conversão = ganhos ÷ leads recebidos pelos vendedores', 'quanto mais leads em aberto, mais o mês ainda pode subir']} />
       </Bloco>
     </Page>
   );
